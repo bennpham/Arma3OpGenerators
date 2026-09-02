@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Altis OP Generator — mission.sqm</title>
+<title>Arma 3 OP Generator — mission.sqm</title>
 <style>
   :root{
     --paper:#cbc9a6;
@@ -117,6 +117,16 @@
   ul.oob li:last-child{border-bottom:0}
   ul.oob .n{color:var(--dim)}
 
+  /* ---------- required mods ---------- */
+  ul.mods{list-style:none;margin:0;padding:0;font-family:var(--mono);font-size:11.5px}
+  ul.mods li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dotted var(--line)}
+  ul.mods li:last-child{border-bottom:0}
+  ul.mods .who{color:var(--dim);font-size:10.5px}
+  /* Vanilla needs no action; a mod the player must have loaded is called out in amber. */
+  ul.mods li.custom .nm{color:var(--amber)}
+  ul.mods li.warn .nm{color:var(--hostile)}
+  ul.mods .tot{color:var(--dim);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+
   /* ---------- output ---------- */
   .out{margin-top:20px;border:1px solid var(--line);background:var(--panel-2)}
   .out-head{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
@@ -138,7 +148,7 @@
 
 <header>
   <div>
-    <h1>Altis OP <span class="slash">/</span> Generator</h1>
+    <h1><span id="worldTitle">Altis</span> OP <span class="slash">/</span> Generator</h1>
     <div class="tagline">Pick a spot, roll an objective, export a version-54 mission.sqm on your existing boilerplate.</div>
   </div>
   <div class="seedbox">
@@ -153,7 +163,7 @@
   <!-- MAP PLATE -->
   <div class="plate">
     <div class="plate-head">
-      <span>Altis <b id="anchorName">—</b></span>
+      <span><span id="plateWorld">Altis</span> <b id="anchorName">—</b></span>
       <span>Click to place the objective</span>
     </div>
     <canvas id="map"></canvas>
@@ -171,8 +181,18 @@
     <fieldset>
       <legend>Objective</legend>
       <div class="field">
-        <label for="anchor">Anchor settlement</label>
-        <select id="anchor"></select>
+        <label for="world">World</label>
+        <select id="world"></select>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="anchorKind">Anchor kind</label>
+          <select id="anchorKind"></select>
+        </div>
+        <div class="field">
+          <label for="anchor">Anchor</label>
+          <select id="anchor"></select>
+        </div>
       </div>
       <div class="row">
         <div class="field">
@@ -197,7 +217,7 @@
     <fieldset>
       <legend>Garrison</legend>
       <div class="field">
-        <label for="faction">Faction</label>
+        <label for="faction">Enemy faction <span class="val" id="vFaction">—</span></label>
         <select id="faction"></select>
       </div>
       <div class="field">
@@ -216,6 +236,18 @@
     </fieldset>
 
     <fieldset>
+      <legend>Your force</legend>
+      <div class="field">
+        <label for="pfaction">Player faction <span class="val" id="vPFaction">—</span></label>
+        <select id="pfaction"></select>
+      </div>
+      <div class="field">
+        <label for="squad">Playable slots <span class="val" id="vSquad">4</span></label>
+        <input type="range" id="squad" min="2" max="8" step="1" value="4">
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Insertion</legend>
       <div class="field">
         <label for="insDist">Distance from objective <span class="val" id="vInsDist">900 m</span></label>
@@ -224,10 +256,6 @@
       <div class="field">
         <label for="insBrg">Bearing <span class="val" id="vInsBrg">225°</span></label>
         <input type="range" id="insBrg" min="0" max="355" step="5" value="225">
-      </div>
-      <div class="field">
-        <label for="squad">Playable slots <span class="val" id="vSquad">4</span></label>
-        <input type="range" id="squad" min="2" max="8" step="1" value="4">
       </div>
     </fieldset>
 
@@ -257,6 +285,11 @@
     </fieldset>
 
     <fieldset>
+      <legend>Required mods</legend>
+      <ul class="mods" id="mods"></ul>
+    </fieldset>
+
+    <fieldset>
       <legend>Brief</legend>
       <div class="brief" id="brief">—</div>
       <ul class="oob" id="oob"></ul>
@@ -277,7 +310,7 @@
   </div>
   <textarea id="sqm" readonly spellcheck="false"></textarea>
   <div class="note">
-    Save as <code>mission.sqm</code> inside a folder named <code>&lt;something&gt;.Altis</code> under your MPMissions or missions directory. Elevation is written as 0 for every entity — infantry seats itself on the surface, and the ground-snap init covers the rest. Open in Eden once and save to let it rewrite <code>addons[]</code> and elevations properly.
+    Save as <code>mission.sqm</code> inside a folder named <code>&lt;something&gt;.<span id="worldSuffix">Altis</span></code> under your MPMissions or missions directory — the suffix binds the mission to the world and must match exactly. <code>addons[]</code> is derived from the units actually emitted, so Eden should not need to rewrite it. Elevation is written as 0 for every entity: infantry seats itself on the surface, and the ground-snap init covers the rest.
   </div>
 </div>
 
@@ -3579,13 +3612,18 @@ if (typeof module !== "undefined" && module.exports){
 /* ===================== UI ===================== */
 if (typeof document !== "undefined") (function(){
 
-var WORLD = 30720;
 var $ = function(s){ return document.getElementById(s); };
+
+/* Selected world, its anchor set, and its edge length. `towns` and `WORLD` are rebuilt
+ * whenever the world or anchor kind changes; everything downstream reads them. */
+var world = worldByName("Altis") || WORLD_DATA[0];
+var towns = anchorsFor(world, "settle");
+var WORLD = world.s;
 
 var cfg = {
   seed: 482913,
-  x: 16780.6, y: 12604.5, anchor: "Pyrgos",
-  opKey: "checkpoint", factionKey: "csat",
+  x: 16780.6, y: 12604.5, anchor: "Pyrgos", anchorKind: "settle",
+  opKey: "checkpoint", factionKey: "EAST|OPF_F", playerFactionKey: "WEST|BLU_F",
   strength: 1, skill: 0.55, patrolRadius: 250,
   insDist: 900, insBrg: 225, squad: 4, objectives: 3,
   waypoints: true, zeus: true, fhq: true, snap: true,
@@ -3593,15 +3631,86 @@ var cfg = {
 };
 var plan = null, sqmText = "";
 
+var ANCHOR_GLYPH = { C:"\u25c6", c:"\u25c6", v:"\u25cf", h:"\u25b2", a:"\u2708" };
+
 /* --- populate selects --- */
-(function(){
+
+/* Anchors are keyed by index, never by name: names repeat within a world (Abel has 27
+ * duplicates among 43 anchors) and a name lookup would snap to the wrong place. */
+function fillAnchors(selected){
   var a = $("anchor");
-  TOWNS.forEach(function(t){
+  a.innerHTML = "";
+  towns.forEach(function(t, i){
     var o = document.createElement("option");
-    o.value = t.n; o.textContent = t.n + "  " + gridRef(t.x,t.y);
+    o.value = String(i);
+    o.textContent = ANCHOR_GLYPH[t.t] + " " + t.n + "  " + gridRef(t.x, t.y);
     a.appendChild(o);
   });
-  a.value = "Pyrgos";
+  a.value = String(Math.max(0, Math.min(towns.length - 1, selected || 0)));
+}
+
+function factionOptionText(f){
+  /* Side matters as much as the name — Spearhead files the Wehrmacht under WEST, and a
+   * bare "Wehrmacht" in a picker is actively misleading. Coverage is shown when a roster
+   * is thin, so a fallback-heavy faction is visible before it is rolled. */
+  return f.label + " \u00b7 " + f.side + (f.coverage < 13 ? "  " + f.coverage + "/13" : "");
+}
+
+function fillFactions(sel, chosen){
+  var byMod = {};
+  FACTION_DATA.forEach(function(d){
+    (byMod[d.m] = byMod[d.m] || []).push(FACTIONS[d.k]);
+  });
+  /* Vanilla first, then mods alphabetically — the common case should not need scrolling. */
+  var ids = Object.keys(byMod).sort(function(a,b){
+    if (a === "vanilla") return -1;
+    if (b === "vanilla") return 1;
+    return (MOD_TAGS[a] ? MOD_TAGS[a].label : a).localeCompare(MOD_TAGS[b] ? MOD_TAGS[b].label : b);
+  });
+  sel.innerHTML = "";
+  ids.forEach(function(id){
+    var g = document.createElement("optgroup");
+    g.label = (MOD_TAGS[id] ? MOD_TAGS[id].label : id) + (id === "vanilla" ? "" : "  (mod required)");
+    byMod[id].sort(function(a,b){ return a.label.localeCompare(b.label); }).forEach(function(f){
+      var o = document.createElement("option");
+      o.value = f.key; o.textContent = factionOptionText(f);
+      g.appendChild(o);
+    });
+    sel.appendChild(g);
+  });
+  sel.value = chosen;
+}
+
+(function(){
+  var wsel2 = $("world");
+  var byGroup = {}, order = [];
+  WORLD_DATA.forEach(function(d, i){
+    if (!byGroup[d.g]) { byGroup[d.g] = []; order.push(d.g); }
+    byGroup[d.g].push({ d: d, i: i });
+  });
+  order.forEach(function(g){
+    var og = document.createElement("optgroup");
+    og.label = g;
+    byGroup[g].forEach(function(e){
+      var o = document.createElement("option");
+      o.value = String(e.i);
+      /* CWR3's Abel has displayName "Malden" and collides with the vanilla Malden, so
+       * the config name is shown whenever it differs. */
+      o.textContent = e.d.d + (e.d.d !== e.d.w ? "  (" + e.d.w + ")" : "");
+      og.appendChild(o);
+    });
+    wsel2.appendChild(og);
+  });
+  wsel2.value = String(WORLD_DATA.indexOf(world));
+
+  var ak = $("anchorKind");
+  Object.keys(ANCHOR_KIND).forEach(function(k){
+    var o = document.createElement("option");
+    o.value = k; o.textContent = ANCHOR_KIND[k].label; ak.appendChild(o);
+  });
+  ak.value = cfg.anchorKind;
+
+  fillAnchors(indexOfAnchor("Pyrgos"));
 
   var o1 = $("op");
   Object.keys(OPS).forEach(function(k){
@@ -3609,11 +3718,8 @@ var plan = null, sqmText = "";
     o.value = k; o.textContent = OPS[k].label; o1.appendChild(o);
   });
 
-  var f = $("faction");
-  Object.keys(FACTIONS).forEach(function(k){
-    var o = document.createElement("option");
-    o.value = k; o.textContent = FACTIONS[k].label; f.appendChild(o);
-  });
+  fillFactions($("faction"), cfg.factionKey);
+  fillFactions($("pfaction"), cfg.playerFactionKey);
 
   var h = $("hour");
   [[4,"04:00 pre-dawn"],[6,"06:00 dawn"],[9,"09:00 morning"],[12,"12:00 midday"],
@@ -3628,6 +3734,41 @@ var plan = null, sqmText = "";
   });
   wsel.value = "fair";
 })();
+
+function hasAnchorKind(w, kind){
+  var wanted = (ANCHOR_KIND[kind] || ANCHOR_KIND.settle).types;
+  for (var i=0; i<w.l.length; i++) if (wanted.indexOf(w.l[i][1]) >= 0) return true;
+  return false;
+}
+
+function indexOfAnchor(name){
+  for (var i=0; i<towns.length; i++) if (towns[i].n === name) return i;
+  return 0;
+}
+
+/* Switching world or anchor kind rebuilds the anchor set and re-scales the map. */
+function setWorld(next, kind){
+  world = next;
+  WORLD = world.s;
+  cfg.anchorKind = kind || cfg.anchorKind;
+  /* Most worlds have no hills or airfields; anchorsFor falls back to settlements there.
+   * Correct cfg to match, so the control never claims a filter it did not apply. */
+  if (!hasAnchorKind(world, cfg.anchorKind)) cfg.anchorKind = "settle";
+  towns = anchorsFor(world, cfg.anchorKind);
+
+  var t = towns[0];
+  cfg.x = t.x; cfg.y = t.y; cfg.anchor = t.n;
+  /* A 3 km insertion leg does not fit on a 2 km map. */
+  if (cfg.insDist > WORLD/4){
+    cfg.insDist = Math.max(200, Math.round(WORLD/4/50)*50);
+    $("insDist").value = cfg.insDist;
+  }
+  fillAnchors(0);
+  $("worldTitle").textContent = world.d;
+  $("plateWorld").textContent = world.d;
+  $("worldSuffix").textContent = world.w;
+  sizeCanvas();
+}
 
 /* --- canvas --- */
 var cv = $("map"), ctx = cv.getContext("2d"), CS = 700;
@@ -3652,27 +3793,31 @@ function drawMap(){
 
   // 1 km grid
   ctx.lineWidth = 1;
-  for (var i=0; i<=30; i++){
+  /* One line per kilometre across whatever this world measures, not a fixed 30. */
+  var KM = Math.ceil(WORLD/1000);
+  for (var i=0; i<=KM; i++){
     var p = i*1000/WORLD*CS;
     ctx.strokeStyle = (i%5===0) ? "rgba(45,54,34,.42)" : "rgba(45,54,34,.16)";
     ctx.beginPath(); ctx.moveTo(p,0); ctx.lineTo(p,CS); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0,CS-p); ctx.lineTo(CS,CS-p); ctx.stroke();
   }
-  // grid labels
+  // grid labels — every 5 km is one label on a 2 km map, so tighten the step when small
   ctx.fillStyle = "rgba(34,38,27,.55)";
   ctx.font = "9px ui-monospace, monospace";
-  for (var j=0; j<=30; j+=5){
+  var STEP = KM <= 10 ? 2 : 5;
+  for (var j=0; j<=KM; j+=STEP){
     var q = j*1000/WORLD*CS;
     ctx.fillText(("0"+j).slice(-3), q+3, 11);
     ctx.fillText(("0"+j).slice(-3), 3, CS-q-4);
   }
 
-  // settlements
-  TOWNS.forEach(function(t){
+  // anchors — labelled only when there is room; SPE_Normandy has 119 and they would mat
+  var labelAnchors = CS > 420 && towns.length <= 90;
+  towns.forEach(function(t){
     var p = toPx(t.x,t.y);
     ctx.fillStyle = "rgba(34,38,27,.62)";
-    ctx.beginPath(); ctx.arc(p.px,p.py,2,0,7); ctx.fill();
-    if (CS > 420){
+    ctx.beginPath(); ctx.arc(p.px,p.py, t.t === "C" ? 3 : 2, 0, 7); ctx.fill();
+    if (labelAnchors){
       ctx.font = "9px ui-monospace, monospace";
       ctx.fillStyle = "rgba(34,38,27,.5)";
       ctx.fillText(t.n, p.px+4, p.py-3);
@@ -3734,8 +3879,8 @@ function place(ev){
   regenerate();
 }
 function nearestTown(x,y){
-  var best = TOWNS[0], bd = Infinity;
-  TOWNS.forEach(function(t){
+  var best = towns[0], bd = Infinity;
+  towns.forEach(function(t){
     var d = (t.x-x)*(t.x-x) + (t.y-y)*(t.y-y);
     if (d < bd){ bd = d; best = t; }
   });
@@ -3752,6 +3897,7 @@ function readInputs(){
   cfg.seed        = parseInt($("seed").value, 10) || 1;
   cfg.opKey       = $("op").value;
   cfg.factionKey  = $("faction").value;
+  cfg.playerFactionKey = $("pfaction").value;
   cfg.strength    = parseInt($("strength").value,10);
   cfg.skill       = parseFloat($("skill").value);
   cfg.patrolRadius= parseInt($("patrol").value,10);
@@ -3782,6 +3928,8 @@ function regenerate(){
   $("vInsBrg").textContent    = cfg.insBrg + "\u00B0";
   $("vSquad").textContent     = cfg.squad;
   $("vObjectives").textContent= cfg.objectives;
+  $("vFaction").textContent   = coverageNote(FACTIONS[cfg.factionKey]);
+  $("vPFaction").textContent  = coverageNote(FACTIONS[cfg.playerFactionKey]);
 
   plan = rollPlan(cfg);
   sqmText = buildSQM(plan, cfg);
@@ -3795,9 +3943,11 @@ function regenerate(){
   $("brief").innerHTML =
     '<span class="name">' + nm + '</span><br>' +
     plan.fac.tag + " holds " + plan.op.site + " near " + cfg.anchor +
-    " at grid " + gridRef(cfg.x,cfg.y) + ". " +
-    "A " + cfg.squad + "-slot recon team inserts " + cfg.insDist + " m out on a bearing of " +
-    cfg.insBrg + "\u00B0 and closes on foot.";
+    " on " + world.d + " at grid " + gridRef(cfg.x,cfg.y) + ". " +
+    "A " + cfg.squad + "-slot " + plan.pfac.label + " team inserts " + cfg.insDist +
+    " m out on a bearing of " + cfg.insBrg + "\u00B0 and closes on foot.";
+
+  renderMods();
 
   var oob = plan.groups.map(function(g){
     return '<li><span>' + g.name + (g.patrol ? " \u00B7 roving" : "") +
@@ -3809,20 +3959,68 @@ function regenerate(){
   $("oob").innerHTML = oob;
 
   $("sqm").value = sqmText;
-  $("fileMeta").textContent = (sqmText.length/1024).toFixed(1) + " KB \u00B7 seed " + cfg.seed;
+  $("fileMeta").textContent = (sqmText.length/1024).toFixed(1) + " KB \u00B7 seed " + cfg.seed +
+    " \u00B7 " + plan.mods.length + (plan.mods.length === 1 ? " mod" : " mods");
   drawMap();
 }
 
+function coverageNote(fac){
+  if (!fac) return "\u2014";
+  return fac.coverage < 13 ? fac.coverage + "/13 roles" : "full roster";
+}
+
+/*
+ * The required-mods readout. This is the point of deriving addons[]: the mission now
+ * states exactly which content a player must have loaded, and says so here before the
+ * file is downloaded rather than leaving it to a failed load in Eden.
+ */
+function renderMods(){
+  var rows = plan.mods.map(function(id){
+    var tag = MOD_TAGS[id];
+    var label = tag ? tag.label : id;
+    var who = tag ? tag.author : "unknown";
+    var cls = (tag && tag.vanilla) ? "" : "custom";
+    return '<li class="' + cls + '"><span class="nm">' + label +
+           '</span><span class="who">' + who + '</span></li>';
+  });
+
+  /* An unresolved classname means addons[] may under-declare, which is the one failure
+   * mode Eden cannot recover from. Say so rather than letting it pass quietly. */
+  if (plan.unresolvedAddons.length){
+    rows.push('<li class="warn"><span class="nm">' + plan.unresolvedAddons.length +
+      ' classname(s) with unknown requirements</span><span class="who">' +
+      plan.unresolvedAddons.slice(0,3).join(", ") + '</span></li>');
+  }
+
+  rows.push('<li><span class="tot">' + plan.addons.length + ' addon' +
+    (plan.addons.length === 1 ? "" : "s") + ' declared</span><span class="who">' +
+    (plan.mods.length === 1 && MOD_TAGS[plan.mods[0]] && MOD_TAGS[plan.mods[0]].vanilla
+      ? "no mods needed" : "mods must be loaded") + '</span></li>');
+
+  $("mods").innerHTML = rows.join("");
+}
+
 /* controls */
-["op","faction","strength","skill","patrol","insDist","insBrg","squad","objectives",
+["op","faction","pfaction","strength","skill","patrol","insDist","insBrg","squad","objectives",
  "waypoints","zeus","fhq","snap","mname","author","hour","weather","seed"].forEach(function(k){
   $(k).addEventListener("input", regenerate);
   $(k).addEventListener("change", regenerate);
 });
 
 $("anchor").addEventListener("change", function(){
-  var t = TOWNS.filter(function(x){ return x.n === $("anchor").value; })[0];
+  var t = towns[parseInt($("anchor").value, 10)];
   cfg.x = t.x; cfg.y = t.y; cfg.anchor = t.n;
+  regenerate();
+});
+
+$("world").addEventListener("change", function(){
+  setWorld(WORLD_DATA[parseInt($("world").value, 10)]);
+  regenerate();
+});
+
+$("anchorKind").addEventListener("change", function(){
+  setWorld(world, $("anchorKind").value);
+  $("anchorKind").value = cfg.anchorKind;   // may have fallen back to settlements
   regenerate();
 });
 
@@ -3830,8 +4028,9 @@ $("anchor").addEventListener("change", function(){
   $(k).addEventListener("change", function(){
     cfg.x = Math.max(0, Math.min(WORLD, parseFloat($("offX").value) || 0));
     cfg.y = Math.max(0, Math.min(WORLD, parseFloat($("offY").value) || 0));
-    cfg.anchor = nearestTown(cfg.x, cfg.y).n;
-    $("anchor").value = cfg.anchor;
+    var near = nearestTown(cfg.x, cfg.y);
+    cfg.anchor = near.n;
+    $("anchor").value = String(towns.indexOf(near));
     regenerate();
   });
 });
@@ -3840,16 +4039,25 @@ $("roll").addEventListener("click", function(){
   var s = Math.floor(Math.random()*9e6) + 1;
   $("seed").value = s;
   var r = mkRnd(s);
-  var t = r.pick(TOWNS);
-  cfg.x = t.x + r.range(-900, 900);
-  cfg.y = t.y + r.range(-900, 900);
-  cfg.anchor = nearestTown(cfg.x, cfg.y).n;
-  $("anchor").value = cfg.anchor;
-  $("op").value      = r.pick(Object.keys(OPS));
+  /* Roll picks an anchor kind that suits the objective — an observation post wants a
+   * hilltop, not a village square — but never changes world or player faction: an
+   * unexpected map, or a squad whose mod requirement moved, is a hostile surprise. */
+  var opKey = r.pick(Object.keys(OPS));
+  var kind = opKey === "op_post" ? "hill" : (opKey === "aa_site" ? "air" : "settle");
+  setWorld(world, kind);
+  $("anchorKind").value = cfg.anchorKind;   // falls back to settlements where unavailable
+
+  var t = r.pick(towns);
+  cfg.x = Math.max(0, Math.min(WORLD, t.x + r.range(-900, 900)));
+  cfg.y = Math.max(0, Math.min(WORLD, t.y + r.range(-900, 900)));
+  var near = nearestTown(cfg.x, cfg.y);
+  cfg.anchor = near.n;
+  $("anchor").value = String(towns.indexOf(near));
+  $("op").value      = opKey;
   $("faction").value = r.pick(Object.keys(FACTIONS));
   $("strength").value= r.int(0,3);
   $("patrol").value  = r.int(12,45)*10;
-  $("insDist").value = r.int(6,26)*50;
+  $("insDist").value = Math.min(r.int(6,26)*50, Math.max(200, Math.round(WORLD/4/50)*50));
   $("insBrg").value  = r.int(0,71)*5;
   $("hour").value    = r.pick(["4","6","9","12","16","19","22","1"]);
   $("weather").value = r.pick(Object.keys(WEATHER));
