@@ -135,7 +135,7 @@ Example row:
 
 The three `Name*` settlement types — `NameVillage`, `NameCity`, `NameCityCapital` — are
 the set that reads as "a town you can attack". For Altis these 48 entries are exactly the
-hardcoded `TOWNS` list in `altis-op-generator.html`.
+hardcoded `TOWNS` list in the pre-multi-map generator.
 
 ---
 
@@ -232,11 +232,12 @@ node tools/build-worlds.mjs --check  # fail if the committed file is stale
 a regenerable artifact. Re-run the build after every re-extraction. The build is
 deterministic and idempotent — an unchanged input reproduces the file byte for byte.
 
-> **Browser note:** a page opened over `file://` cannot `fetch()` a sibling JSON file
-> under default browser CORS rules. `altis-op-generator.html` is a single self-contained
-> file opened directly from disk, so wiring it to `worlds.json` will need a local static
-> server, an inlined data blob, or a `<script>`-tag data shim. Worth deciding before the
-> multi-map work starts.
+> **Browser note — decided.** A page opened over `file://` cannot `fetch()` a sibling JSON
+> file under default browser CORS rules, and `op-generator.html` is a single self-contained
+> file opened directly from disk. The data is therefore **distilled and inlined** by
+> `tools/build-data.mjs` into delimited `GENERATED` regions in the HTML: about 110 KB
+> covering 56 worlds and 80 factions, bringing the tool to ~186 KB. No fetch, no server, no
+> second file — the single-file property is preserved.
 
 ---
 

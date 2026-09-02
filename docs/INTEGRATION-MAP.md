@@ -1,124 +1,117 @@
-# Integration map — where the data plugs into the generator
+# Integration map — how the data reaches the generator
 
-Every place in `altis-op-generator.html` that hardcodes game data, and which dataset
-replaces it. **This document describes; it changes nothing.** No generator logic has been
-modified.
+`op-generator.html` used to hardcode everything about Altis: 48 settlements, a `30720` map
+size, 4 hand-written faction rosters, 8 player-slot classnames, and a 2-entry `addons[]`
+list. It now draws all of that from `docs/json/`.
 
-For the data shapes see `.claude/skills/arma3-data/SKILL.md`; for provenance see
-`SOURCES.md`.
+This document records what was wired and what is still open. For the data shapes see
+`.claude/skills/arma3-data/SKILL.md`; for provenance see `SOURCES.md`.
 
-Line numbers were verified against the current `altis-op-generator.html`. If they drift,
-re-check with `grep -n` before trusting them.
+## How the data gets in
 
-## The current state in one paragraph
+The generator is a single file opened over `file://`, which cannot `fetch()` a sibling
+JSON. So `tools/build-data.mjs` distills the dumps and **rewrites three delimited regions
+inside `op-generator.html`**:
 
-`altis-op-generator.html` is a single self-contained file that hardcodes everything about
-Altis: 48 settlements, a `30720` map size, 4 hand-written faction rosters, 8 player-slot
-classnames, and a 2-entry `addons[]` list. The generator core is otherwise map-agnostic —
-`rollPlan` and `buildSQM` take coordinates and classnames and do not care where they came
-from. **The data is the only thing tying the tool to Altis.**
+| Region | Contents |
+|--------|----------|
+| `MOD_TAGS` | Mod bundle labels, authors and urls, keyed by addon-name prefix |
+| `WORLD_DATA` | 56 worlds × 2023 anchors — name, type code, easting, northing, radius |
+| `FACTION_DATA` | 80 factions — Eden side, label, mod, role roster, per-classname addons |
 
-## Verified: the Altis data is already a subset of the dump
+Roughly 110 KB inlined, bringing the tool to ~186 KB. `--check` fails if the regions are
+stale. The regions are emitted one element per line and in a stable order, so a
+re-extraction produces a readable diff rather than one enormous line.
 
-The hardcoded `TOWNS` array at `:289` is *exactly* the 48 `NameVillage` + `NameCity` +
-`NameCityCapital` entries for Altis in `worldLocation.json`:
+## What each plug point became
 
-- 48 of 48 names present in the dump
-- 0 coordinate mismatches beyond 0.05 m
-- The dump's Altis entry has 172 locations and `mapSize: 30720`
+### Map locations → `worlds.json`
 
-So the dump is a strict superset, adding 79 `NameLocal`, 25 `Hill`, and 20 `NameMarine`
-locations Altis mode does not currently offer. **Replacing `TOWNS` with dump-derived data
-is a drop-in that cannot regress Altis** — a useful property, since the stated plan is to
-get Altis right first and then generalise to presets for other maps.
+| Was | Now |
+|-----|-----|
+| `TOWNS`, 48 hardcoded Altis `{n,x,y}` | `WORLD_DATA` + `anchorsFor(world, kind)`; settlements, hills and airfields |
+| `var WORLD = 30720` | `world.s`, resolved at build time (see below) |
+| `toPx`/`toWorld`, coordinate clamps | unchanged — they already read `WORLD` |
+| grid loop `for (i=0; i<=30; i++)` | `Math.ceil(WORLD/1000)`, with a 2 km label step below 10 km |
+| anchor `<select>` keyed by name | keyed by **index** — see the gotcha below |
+| save-folder text `<something>.Altis` | the selected world's `worldName` |
+| title/header "Altis" | the selected world's `displayName` |
 
-## Plug points
+### Units → `classes.json`
 
-### Map location data → `worldLocation.json` / `worlds.json`
+| Was | Now |
+|-----|-----|
+| `FACTIONS`, 4 hand-built rosters | `FACTION_DATA`, 80 factions, gated at ≥7 of 13 roles |
+| `fac.roster[role] \|\| fac.roster.rifle` | **unchanged** — only roster construction moved |
+| `side="West"` hardcoded on the player | the chosen player faction's Eden side |
+| `type="o_installation"`, `ColorOPFOR` | follow the side each marker represents |
+| `PLAYER_SLOTS`, 8 NATO classnames | 8 role keys; NATO's recon team kept as a slot override |
+| `addons[]`, 2 fixed entries | the exact union over emitted classnames |
+| `AddonsMetaData`, always Bohemia | the real author and url per mod bundle |
 
-| # | Anchor | Today | Replacement |
-|---|--------|-------|-------------|
-| 1 | `:289` `TOWNS` | 48 hardcoded Altis `{n,x,y}` | World's `locations[]` filtered to the 3 `Name*` settlement types. Also unlocks `radiusA`/`radiusB`/`angle` for objective sizing, and `Hill` / `Airport` as new anchor kinds |
-| 2 | `:971` `var WORLD = 30720` | Altis constant | World `mapSize`. **The blocker for multi-map** |
-| 3 | `:1030` `toPx` / `toWorld` | divides by `WORLD` | reads from selected world |
-| 4 | `:1045` grid drawing | `1000/WORLD*CS` | same |
-| 5 | `:1119`, `:1220` coordinate clamps | `Math.min(WORLD, …)` | same |
-| 6 | `:987–994` anchor `<select>` | populated from `TOWNS` | same source; needs a **world selector** above it |
-| 7 | `:1060–1070` map render | draws `TOWNS` as dots | same; `radiusA/B` + `angle` allow real footprint ellipses |
-| 8 | `:1126–1128` nearest-anchor snap | scans `TOWNS` | same |
-| 9 | `:1213` anchor lookup by name | `TOWNS.filter(…)` | same |
-| 10 | `:1232` random anchor | `r.pick(TOWNS)` | same |
-| 11 | `:280` save-folder instruction | text says `<something>.Altis` | World `worldName`. **The `.sqm` carries no world name** — the world binding is purely the mission folder suffix, so this text is load-bearing, not cosmetic |
-| 12 | `:6`, `:141`, `:156` title/header | "Altis" | World `displayName` |
-
-**`WORLD` (#2) is the real work.** It is a single `var` but it feeds coordinate transforms,
-grid rendering, and input clamping. Making it per-world touches items 3–5 mechanically.
-Guard `mapSize === 0` (7 of 61 worlds) — see the fallback recipe in the skill, and prefer
-a hardcoded size in a per-map preset for any world that matters.
-
-### Unit / vehicle data → `classes.json`
-
-| # | Anchor | Today | Replacement |
-|---|--------|-------|-------------|
-| 13 | `:316–337` `FACTIONS` | 4 hand-built rosters, each mapping 13 role keys to classnames | Filter `side` + `faction` + `category: "Infantry"`. **120 factions available** vs 4 |
-| 14 | `:511` `fac.roster[role]` | direct object index, falls back to `rifle` | **Unchanged.** Keep this interface — only roster *construction* changes |
-| 15 | `:690`, `:702`, `:733`, `:745` | writes `side="West"` / `plan.fac.side` | Dump uses `WEST`/`EAST`/`GUER`/`CIV`; `mission.sqm` wants Eden's `West`/`East`/`Independent`/`Civilian`. Needs an explicit mapping table |
-| 16 | `:425–434` `PLAYER_SLOTS` | 8 hardcoded BLUFOR recon classnames | `side: "WEST"`, `category: "Infantry"`. Lowest priority — works fine today |
-| 17 | `:586–590` `addons[]` | 2 hardcoded + 3 conditional Zeus entries | Union of `addons[]` over every emitted classname |
-| 18 | `:594–596` addon display names | 1 hardcoded pair | **Not in the dump.** Classnames only; needs a separate lookup or omission |
-
-### Untouched by either dataset
-
-`OPS` (`:339`), `STRENGTH` (`:411`), `WEATHER` (`:418`) are authored mission design, not
-game data. `OPS` templates reference **role keys**, not classnames, which is why swapping
+`OPS`, `STRENGTH` and `WEATHER` are authored mission design, not game data, and are
+untouched. `OPS` templates reference **role keys**, not classnames, which is why swapping
 factions works at all — keep that indirection.
 
-`module.exports` at `:963` exports `TOWNS`, `FACTIONS`, `OPS`, `STRENGTH`, `WEATHER`,
-`rollPlan`, `buildSQM`, `gridRef` for Node. **Preserve it.** It is the seam a test harness
-or an offline per-map preset builder would use, and it is the natural place to feed
-dump-derived data in headless.
+## Gotchas that bit, and must not be reintroduced
 
-## The one place the data does not map cleanly
+These are properties of the data, not of the code. Each one shipped as a bug or nearly did.
 
-`FACTIONS` (#13) needs 13 named roles — `sl`, `tl`, `rifle`, `ar`, `gl`, `lat`, `medic`,
-`marksman`, `sniper`, `aa`, `officer`, `engineer`, `mg`.
+- **`mapSize` lies, and not only when it is `0`.** 7 worlds report `0`; 4 more report a
+  size smaller than their own locations (`CUP_Chernarus_A3` claims 8192 with towns out to
+  13397). Sizes are pinned in `SIZE_OVERRIDE` where known and widened to
+  `ceil(maxCoord/1024)*1024` otherwise, with a warning printed either way. The smoke test
+  asserts every anchor falls inside its world's size.
+- **Location names repeat and are sometimes empty.** 16 worlds have duplicates within their
+  anchor set (Abel: 27 of 43) and 110 Hill/Airport entries have no name at all. **Key
+  anchors by index.** A name lookup silently snaps to the wrong place. Blank names are
+  synthesized at build time so the blob is self-describing.
+- **`addons[]` in the dump carries compat noise.** 259 usable units list `ace_*`/`cba_*`
+  entries purely because ACE was loaded at extraction — vanilla `B_sniper_F` lists
+  `ace_explosives`. Emitting them verbatim makes every mission hard-require ACE3. Stripped
+  at build time, along with `zen_*`/`EF_Curator` on the Zeus modules.
+- **Role inference can drag in a foreign mod.** `BLU_F` infantry span `A3_Characters_F`,
+  `RF_Characters` and `Characters_f_lxWS`. Candidates are scored to prefer a faction's
+  dominant addon, or NATO comes to require Western Sahara.
+- **230 display names are mojibake** — UTF-8 read as Latin-1 at extraction. Labels only;
+  classnames are ASCII. Repaired at build time when the round-trip is unambiguous.
+- **Classnames are case-insensitive in game but not in the dump.** The hand-written rosters
+  use `O_soldier_LAT_F` where the dump has `O_Soldier_LAT_F`. Look them up case
+  insensitively or their addon requirements vanish silently.
 
-**`classes.json` has no role field.** Roles must be inferred from `classname` /
-`displayName` patterns, and there is no cross-mod convention to lean on:
+## The one place the data still does not map cleanly
+
+`classes.json` has **no role field**, and no cross-mod naming convention to lean on:
 
 ```
 O_Soldier_AR_F           vanilla CSAT autorifleman
 CUP_O_RU_Soldier_AR      CUP Russian autorifleman
-vn_o_pavn_men_05         Vietnam PAVN — carries no role token at all
+vn_o_men_nva_02          Vietnam PAVN — carries no role token at all
 ```
 
-Vanilla and CUP are tractable via suffix matching. Others are not. Practical approach:
+Roles are inferred from `displayName` first (the more honest and more consistently
+localised signal) then `classname`. Current coverage of the 13 roles across the 92
+non-civilian side|faction groups:
 
-1. Pattern-match `classname` first, `displayName` second (`displayName` is often the more
-   honest signal — "Autorifleman", "Squad Leader" — and is localised consistently).
-2. Always fall back — `:511` already degrades to `rifle`, so partial coverage is safe.
-3. Treat any faction whose roster resolves under some threshold of the 13 roles as
-   unsupported, and keep it out of the picker rather than shipping a broken roster.
+- 18 resolve all 13
+- 54 resolve ≥10
+- 80 resolve ≥7 and are shipped
+- 12 fall below 7 and are dropped rather than shipped as a squad of identical riflemen
 
-**Recommendation:** keep the 4 existing hand-written rosters as verified presets, and treat
-dump-derived rosters as an additive tier. Do not delete working data to prove a point.
+Where a faction genuinely lacks a role — PAVN fields no squad leader or autorifleman at
+all — a build-time fallback chain substitutes a near neighbour (officer for squad leader,
+machine gunner for autorifleman) rather than the generic rifleman. The reported coverage
+number stays the directly-inferred count, so the UI does not overstate how complete a
+roster is.
 
-## `addons[]` is the sleeper win
+## Still open
 
-Item #17 is independently valuable and does not depend on anything else here.
-
-`buildSQM` currently emits a fixed 2-entry `addons[]`, which is why `:280` instructs the
-user to "open in Eden once and save to let it rewrite `addons[]`". Since every entry in
-`classes.json` carries its own `addons[]`, the correct list is a union over the classnames
-actually emitted — computable exactly, with no inference. That removes a manual step from
-every single mission the tool produces, and it becomes *required* the moment a non-vanilla
-faction is selectable.
-
-## Suggested ordering
-
-1. **`addons[]` (#17)** — self-contained, no dependencies, fixes a real defect today.
-2. **World data (#1–#12)** — `mapSize` and `TOWNS` are one coherent change; do it on Altis
-   first, where the dump is proven identical to the hardcoded list, then add a world
-   selector. Solve the `file://` fetch problem before starting (see `SOURCES.md`).
-3. **Factions (#13–#16)** — gated on role inference; the hardest and least certain. Worth
-   doing behind the existing hand-written presets rather than instead of them.
+- **No vehicles or statics are ever emitted.** `classes.json` has 2554 wheeled, 822 tracked,
+  905 air and 833 static entries that the generator does not touch. An air defence site with
+  no launcher object is the most visible consequence.
+- **`MarkerIDProvider.nextID` is still `1`** despite three markers being emitted.
+- **The FHQ "complete" trigger has no `condition=`**, so it fires immediately unless edited.
+- **Faction display labels are hand-authored** in `tools/build-data.mjs` and will rot on
+  re-extraction. The build warns for any faction without one.
+- **`Desert_Island`'s size is an estimate** from 2 locations; it has no usable anchors and
+  is not shipped, but the estimate would need verifying if that changed.
