@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Altis OP Generator — mission.sqm</title>
+<style>
+  :root{
+    --paper:#cbc9a6;
+    --paper-hi:#d6d4b4;
+    --paper-lo:#b9b791;
+    --sea:#9db3bd;
+    --grid:rgba(45,54,34,.26);
+    --grid-major:rgba(45,54,34,.5);
+    --ink:#22261b;
+    --panel:#1b201a;
+    --panel-2:#232a21;
+    --panel-3:#2c342a;
+    --line:#3a4436;
+    --pale:#dbe0cf;
+    --dim:#8d977f;
+    --hostile:#bf3b2c;
+    --friendly:#3b7ab5;
+    --amber:#cf9c2c;
+    --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--panel);
+    color:var(--pale);
+    font-family:var(--mono);
+    font-size:13px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1240px;margin:0 auto;padding:22px 18px 64px}
+
+  /* ---------- header ---------- */
+  header{
+    border-bottom:1px solid var(--line);
+    padding-bottom:14px;margin-bottom:20px;
+    display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;
+  }
+  h1{
+    font-size:19px;font-weight:600;margin:0;
+    letter-spacing:.18em;text-transform:uppercase;
+  }
+  h1 .slash{color:var(--amber)}
+  .tagline{color:var(--dim);font-size:12px;margin-top:5px;font-family:var(--sans);letter-spacing:.01em}
+  .seedbox{display:flex;gap:8px;align-items:center}
+  .seedbox label{color:var(--dim);font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+
+  /* ---------- layout ---------- */
+  .cols{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+  @media (max-width:900px){.cols{grid-template-columns:1fr}}
+
+  /* ---------- map plate ---------- */
+  .plate{border:1px solid var(--line);background:var(--panel-2)}
+  .plate-head{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:8px 12px;border-bottom:1px solid var(--line);
+    font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+  }
+  .plate-head b{color:var(--pale);font-weight:600;letter-spacing:.16em}
+  #map{display:block;width:100%;aspect-ratio:1/1;cursor:crosshair;touch-action:none}
+  .readout{
+    display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);
+  }
+  .readout div{padding:9px 12px;border-right:1px solid var(--line)}
+  .readout div:last-child{border-right:0}
+  .readout .k{display:block;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .readout .v{font-size:14px;color:var(--pale)}
+  .readout .v.hostile{color:#e2705f}
+  @media (max-width:560px){.readout{grid-template-columns:repeat(2,1fr)}.readout div{border-bottom:1px solid var(--line)}}
+
+  /* ---------- controls ---------- */
+  .stack{display:flex;flex-direction:column;gap:14px}
+  fieldset{border:1px solid var(--line);background:var(--panel-2);margin:0;padding:12px}
+  legend{
+    font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);
+    padding:0 6px;margin-left:-4px;
+  }
+  .field{margin-bottom:11px}
+  .field:last-child{margin-bottom:0}
+  .field > label{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+  select,input[type=text],input[type=number]{
+    width:100%;background:var(--panel);color:var(--pale);border:1px solid var(--line);
+    padding:7px 8px;font-family:var(--mono);font-size:12px;border-radius:0;
+  }
+  select:focus,input:focus,button:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:1px}
+  input[type=range]{width:100%;accent-color:var(--amber);background:transparent}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .val{float:right;color:var(--pale);letter-spacing:0}
+  .check{display:flex;gap:8px;align-items:flex-start;margin-bottom:9px;font-family:var(--sans);font-size:12px;color:var(--pale)}
+  .check:last-child{margin-bottom:0}
+  .check input{accent-color:var(--amber);margin-top:2px;flex:0 0 auto}
+  .check span small{display:block;color:var(--dim);font-size:11px;line-height:1.4}
+
+  button{
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    background:var(--panel-3);color:var(--pale);border:1px solid var(--line);
+    padding:10px 12px;cursor:pointer;border-radius:0;
+  }
+  button:hover{background:#38412f;border-color:#556149}
+  button.primary{background:var(--amber);color:#1b1503;border-color:var(--amber);font-weight:700}
+  button.primary:hover{background:#e0ab35;border-color:#e0ab35}
+  .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .btnrow.one{grid-template-columns:1fr}
+
+  /* ---------- brief ---------- */
+  .brief{font-family:var(--sans);font-size:12.5px;line-height:1.6;color:#c3cbb6}
+  .brief .name{color:var(--pale);font-family:var(--mono);letter-spacing:.04em}
+  ul.oob{list-style:none;margin:9px 0 0;padding:0;font-family:var(--mono);font-size:11.5px}
+  ul.oob li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dotted var(--line)}
+  ul.oob li:last-child{border-bottom:0}
+  ul.oob .n{color:var(--dim)}
+
+  /* ---------- output ---------- */
+  .out{margin-top:20px;border:1px solid var(--line);background:var(--panel-2)}
+  .out-head{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .out-head .t{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .out-head .t b{color:var(--pale)}
+  textarea{
+    width:100%;height:300px;background:#161a14;color:#b9c4a8;border:0;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:11px;line-height:1.45;padding:12px;resize:vertical;white-space:pre;
+  }
+  .note{font-family:var(--sans);font-size:11.5px;color:var(--dim);padding:10px 12px;border-top:1px solid var(--line);line-height:1.55}
+  .toast{color:var(--amber);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+  @media (prefers-reduced-motion:no-preference){
+    .toast{transition:opacity .25s}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>Altis OP <span class="slash">/</span> Generator</h1>
+    <div class="tagline">Pick a spot, roll an objective, export a version-54 mission.sqm on your existing boilerplate.</div>
+  </div>
+  <div class="seedbox">
+    <label for="seed">Seed</label>
+    <input type="text" id="seed" style="width:120px" value="482913">
+    <button id="roll" class="primary">Roll</button>
+  </div>
+</header>
+
+<div class="cols">
+
+  <!-- MAP PLATE -->
+  <div class="plate">
+    <div class="plate-head">
+      <span>Altis <b id="anchorName">—</b></span>
+      <span>Click to place the objective</span>
+    </div>
+    <canvas id="map"></canvas>
+    <div class="readout">
+      <div><span class="k">Grid</span><span class="v" id="rGrid">—</span></div>
+      <div><span class="k">Position</span><span class="v" id="rPos">—</span></div>
+      <div><span class="k">Insertion</span><span class="v" id="rIns">—</span></div>
+      <div><span class="k">Hostiles</span><span class="v hostile" id="rEnemy">—</span></div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="stack">
+
+    <fieldset>
+      <legend>Objective</legend>
+      <div class="field">
+        <label for="anchor">Anchor settlement</label>
+        <select id="anchor"></select>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="offX">Easting</label>
+          <input type="number" id="offX" step="1">
+        </div>
+        <div class="field">
+          <label for="offY">Northing</label>
+          <input type="number" id="offY" step="1">
+        </div>
+      </div>
+      <div class="field">
+        <label for="op">Site type</label>
+        <select id="op"></select>
+      </div>
+      <div class="field">
+        <label for="objectives">Objectives <span class="val" id="vObjectives">3</span></label>
+        <input type="range" id="objectives" min="1" max="3" step="1" value="3">
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Garrison</legend>
+      <div class="field">
+        <label for="faction">Faction</label>
+        <select id="faction"></select>
+      </div>
+      <div class="field">
+        <label for="strength">Strength <span class="val" id="vStrength">Standard</span></label>
+        <input type="range" id="strength" min="0" max="3" step="1" value="1">
+      </div>
+      <div class="field">
+        <label for="skill">AI skill <span class="val" id="vSkill">0.55</span></label>
+        <input type="range" id="skill" min="0.2" max="1" step="0.05" value="0.55">
+      </div>
+      <div class="field">
+        <label for="patrol">Patrol radius <span class="val" id="vPatrol">250 m</span></label>
+        <input type="range" id="patrol" min="80" max="700" step="10" value="250">
+      </div>
+      <label class="check"><input type="checkbox" id="waypoints" checked><span>Cyclic patrol waypoints<small>Roving groups get a MOVE ring closed with a Cycle waypoint.</small></span></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Insertion</legend>
+      <div class="field">
+        <label for="insDist">Distance from objective <span class="val" id="vInsDist">900 m</span></label>
+        <input type="range" id="insDist" min="200" max="3000" step="50" value="900">
+      </div>
+      <div class="field">
+        <label for="insBrg">Bearing <span class="val" id="vInsBrg">225°</span></label>
+        <input type="range" id="insBrg" min="0" max="355" step="5" value="225">
+      </div>
+      <div class="field">
+        <label for="squad">Playable slots <span class="val" id="vSquad">4</span></label>
+        <input type="range" id="squad" min="2" max="8" step="1" value="4">
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Scenario</legend>
+      <div class="field">
+        <label for="mname">Mission name</label>
+        <input type="text" id="mname" value="">
+      </div>
+      <div class="field">
+        <label for="author">Author</label>
+        <input type="text" id="author" value="Phantom Six">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="hour">Start hour</label>
+          <select id="hour"></select>
+        </div>
+        <div class="field">
+          <label for="weather">Weather</label>
+          <select id="weather"></select>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="zeus" checked><span>Zeus + spectator slots<small>3 curators and 16 spectator slots, same layout as your template.</small></span></label>
+      <label class="check"><input type="checkbox" id="fhq" checked><span>FHQ TaskTracker triggers<small>Per-objective completion and autosave triggers, plus victory and wipe conditions.</small></span></label>
+      <label class="check"><input type="checkbox" id="snap" checked><span>Ground-snap init line<small>Each group leader re-seats its units at ATL 0 on init, since terrain height isn't computed here.</small></span></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Brief</legend>
+      <div class="brief" id="brief">—</div>
+      <ul class="oob" id="oob"></ul>
+    </fieldset>
+
+  </div>
+</div>
+
+<!-- OUTPUT -->
+<div class="out">
+  <div class="out-head">
+    <span class="t">mission.sqm <b id="fileMeta">—</b></span>
+    <span style="display:flex;gap:8px;align-items:center">
+      <span class="toast" id="toast" style="opacity:0">copied</span>
+      <button id="copy">Copy</button>
+      <button id="dl" class="primary">Download mission.sqm</button>
+    </span>
+  </div>
+  <textarea id="sqm" readonly spellcheck="false"></textarea>
+  <div class="note">
+    Save as <code>mission.sqm</code> inside a folder named <code>&lt;something&gt;.Altis</code> under your MPMissions or missions directory. Elevation is written as 0 for every entity — infantry seats itself on the surface, and the ground-snap init covers the rest. Open in Eden once and save to let it rewrite <code>addons[]</code> and elevations properly.
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ===================== GENERATOR CORE (pure) ===================== */
+
+var TOWNS = [
+ {n:"Abdera",x:9425.42,y:20284},{n:"Aggelochori",x:3687.78,y:13776.1},
+ {n:"Agia Triada",x:16668.5,y:20487},{n:"Agios Dionysios",x:9187.95,y:15947.8},
+ {n:"Agios Konstantinos",x:3948.77,y:17277.8},{n:"Agios Petros",x:19339.4,y:17641.6},
+ {n:"Alikampos",x:11112.6,y:14573.7},{n:"Anthrakia",x:16584.3,y:16104},
+ {n:"Athira",x:13993,y:18709.4},{n:"Chalkeia",x:20194.6,y:11660.7},
+ {n:"Charkia",x:18049.1,y:15264.1},{n:"Delfinaki",x:23908.6,y:20144.7},
+ {n:"Dorida",x:19336.9,y:13252.3},{n:"Ekali",x:17059.7,y:9992.32},
+ {n:"Feres",x:21640.7,y:7583.93},{n:"Frini",x:14612.5,y:20786.7},
+ {n:"Galati",x:10270.3,y:19036},{n:"Gravia",x:14479.8,y:17614.3},
+ {n:"Ifestiona",x:12787,y:19679.3},{n:"Ioannina",x:23199.7,y:19986.6},
+ {n:"Kalithea",x:17826.5,y:18129.4},{n:"Kalochori",x:21351.6,y:16361.9},
+ {n:"Katalaki",x:11701.1,y:13672.1},{n:"Kavala",x:3458.95,y:12966.4},
+ {n:"Kore",x:7062.42,y:16472.1},{n:"Koroni",x:11786.7,y:18372.4},
+ {n:"Lakka",x:12282,y:15732.3},{n:"Molos",x:26943.9,y:23170.7},
+ {n:"Negades",x:4885.98,y:16171.3},{n:"Neochori",x:12502,y:14337},
+ {n:"Neri",x:4116.11,y:11736.1},{n:"Nifi",x:19473.3,y:15453.7},
+ {n:"Oreokastro",x:4560.45,y:21460.6},{n:"Orino",x:10410.4,y:17243.1},
+ {n:"Panagia",x:20490.2,y:8907.12},{n:"Panochori",x:5033.31,y:11245.2},
+ {n:"Paros",x:20885.4,y:16958.8},{n:"Poliakko",x:10966.5,y:13435.3},
+ {n:"Pyrgos",x:16780.6,y:12604.5},{n:"Rodopoli",x:18753.4,y:16597.1},
+ {n:"Selakano",x:20769.8,y:6736.46},{n:"Sofia",x:25680.5,y:21365.1},
+ {n:"Stavros",x:12950.1,y:15041.6},{n:"Syrta",x:8625.13,y:18301.6},
+ {n:"Telos",x:16207,y:17296.7},{n:"Therisa",x:10618.9,y:12237.3},
+ {n:"Topolia",x:7375.81,y:15429.5},{n:"Zaros",x:9091.81,y:11961.9}
+];
+
+var FACTIONS = {
+  csat: { label:"CSAT (OPFOR)", side:"East", tag:"CSAT", roster:{
+    sl:"O_Soldier_SL_F", tl:"O_Soldier_TL_F", rifle:"O_Soldier_F", ar:"O_Soldier_AR_F",
+    gl:"O_Soldier_GL_F", lat:"O_soldier_LAT_F", medic:"O_medic_F", marksman:"O_soldier_M_F",
+    sniper:"O_sniper_F", aa:"O_soldier_AA_F", officer:"O_officer_F", engineer:"O_engineer_F",
+    mg:"O_HeavyGunner_F" }},
+  csat_pac: { label:"CSAT Pacific (OPFOR)", side:"East", tag:"CSAT-P", roster:{
+    sl:"O_T_Soldier_SL_F", tl:"O_T_Soldier_TL_F", rifle:"O_T_Soldier_F", ar:"O_T_Soldier_AR_F",
+    gl:"O_T_Soldier_GL_F", lat:"O_T_Soldier_LAT_F", medic:"O_T_Medic_F", marksman:"O_T_Soldier_M_F",
+    sniper:"O_T_Sniper_F", aa:"O_T_Soldier_AA_F", officer:"O_T_Officer_F", engineer:"O_T_Engineer_F",
+    mg:"O_T_Soldier_HAT_F" }},
+  aaf: { label:"AAF (Independent)", side:"Independent", tag:"AAF", roster:{
+    sl:"I_Soldier_SL_F", tl:"I_Soldier_TL_F", rifle:"I_Soldier_F", ar:"I_Soldier_AR_F",
+    gl:"I_Soldier_GL_F", lat:"I_Soldier_LAT_F", medic:"I_medic_F", marksman:"I_Soldier_M_F",
+    sniper:"I_Sniper_F", aa:"I_Soldier_AA_F", officer:"I_officer_F", engineer:"I_engineer_F",
+    mg:"I_Soldier_AR_F" }},
+  fia: { label:"FIA (Independent)", side:"Independent", tag:"FIA", roster:{
+    sl:"I_G_Soldier_SL_F", tl:"I_G_Soldier_TL_F", rifle:"I_G_Soldier_F", ar:"I_G_Soldier_AR_F",
+    gl:"I_G_Soldier_GL_F", lat:"I_G_Soldier_LAT_F", medic:"I_G_medic_F", marksman:"I_G_Soldier_M_F",
+    sniper:"I_G_Sniper_F", aa:"I_G_Soldier_LAT_F", officer:"I_G_officer_F", engineer:"I_G_engineer_F",
+    mg:"I_G_Soldier_AR_F" }}
+};
+
+var OPS = {
+  checkpoint: {
+    label:"Road checkpoint",
+    site:"a vehicle control point astride the main road",
+    core:120,
+    groups:[
+      {name:"CP Guard",   roles:["sl","rifle","ar","gl"],        ring:30,  patrol:false},
+      {name:"Overwatch",  roles:["tl","marksman","rifle"],       ring:110, patrol:false},
+      {name:"Roving",     roles:["tl","rifle","ar","lat","medic"],ring:0,  patrol:true}
+    ],
+    tasks:["Destroy the checkpoint","Recover the transit manifest","Break contact and exfil"]
+  },
+  comms: {
+    label:"Communications relay",
+    site:"a relay mast with a hardened equipment shelter",
+    core:140,
+    groups:[
+      {name:"Relay Sec",  roles:["sl","rifle","ar","engineer"],  ring:35,  patrol:false},
+      {name:"Perimeter",  roles:["tl","rifle","gl","rifle"],     ring:120, patrol:false},
+      {name:"Roving",     roles:["tl","rifle","ar","lat"],       ring:0,   patrol:true}
+    ],
+    tasks:["Destroy the relay mast","Pull the encryption keys","Exfil before the QRF arrives"]
+  },
+  depot: {
+    label:"Supply depot",
+    site:"a fenced yard of cargo containers and fuel bladders",
+    core:170,
+    groups:[
+      {name:"Depot Sec",  roles:["sl","rifle","ar","gl","medic"],ring:40,  patrol:false},
+      {name:"Gate Guard", roles:["tl","rifle","rifle"],          ring:130, patrol:false},
+      {name:"Roving",     roles:["tl","rifle","ar","lat"],       ring:0,   patrol:true},
+      {name:"Command",    roles:["officer","rifle","rifle"],     ring:55,  patrol:false}
+    ],
+    tasks:["Destroy the fuel stores","Capture the depot officer","Exfil with the prisoner"]
+  },
+  aa_site: {
+    label:"Air defence site",
+    site:"a dug-in air defence position covering the approach corridor",
+    core:150,
+    groups:[
+      {name:"AD Crew",    roles:["sl","aa","aa","engineer"],     ring:35,  patrol:false},
+      {name:"Site Guard", roles:["tl","rifle","ar","gl"],        ring:115, patrol:false},
+      {name:"Roving",     roles:["tl","rifle","lat"],            ring:0,   patrol:true}
+    ],
+    tasks:["Destroy the launcher","Destroy the radar vehicle","Confirm the corridor is clear"]
+  },
+  op_post: {
+    label:"Observation post",
+    site:"a hilltop observation post with a sandbagged crest position",
+    core:90,
+    groups:[
+      {name:"OP Crew",    roles:["tl","marksman","rifle"],       ring:25,  patrol:false},
+      {name:"Sniper Team",roles:["sniper","marksman"],           ring:95,  patrol:false},
+      {name:"Roving",     roles:["tl","rifle","ar","lat"],       ring:0,   patrol:true}
+    ],
+    tasks:["Eliminate the observation team","Recover their logbook","Withdraw undetected"]
+  },
+  patrol_base: {
+    label:"Patrol base",
+    site:"a company patrol base with tented lines and a vehicle park",
+    core:220,
+    groups:[
+      {name:"HQ Element", roles:["officer","sl","rifle","medic"],ring:40,  patrol:false},
+      {name:"1st Squad",  roles:["sl","rifle","ar","gl","lat"],  ring:120, patrol:false},
+      {name:"2nd Squad",  roles:["sl","rifle","ar","gl","rifle"],ring:150, patrol:false},
+      {name:"Roving A",   roles:["tl","rifle","ar","lat"],       ring:0,   patrol:true},
+      {name:"Roving B",   roles:["tl","rifle","mg"],             ring:0,   patrol:true}
+    ],
+    tasks:["Destroy the ammunition point","Eliminate the base commander","Exfil to the pickup point"]
+  }
+};
+
+var STRENGTH = [
+  {label:"Light",     mul:0.75, groups:0.8},
+  {label:"Standard",  mul:1.0,  groups:1.0},
+  {label:"Reinforced",mul:1.35, groups:1.0},
+  {label:"Heavy",     mul:1.7,  groups:1.25}
+];
+
+var WEATHER = {
+  clear:   {label:"Clear",    o:0.05, w:0.05, waves:0.05, fog:0.004},
+  fair:    {label:"Fair",     o:0.30, w:0.10, waves:0.10, fog:0.014},
+  overcast:{label:"Overcast", o:0.75, w:0.25, waves:0.25, fog:0.020},
+  storm:   {label:"Storm",    o:1.00, w:0.60, waves:0.60, fog:0.030}
+};
+
+var PLAYER_SLOTS = [
+  {cls:"B_recon_TL_F",    rank:"LIEUTENANT", desc:"Team Leader"},
+  {cls:"B_recon_M_F",     rank:"SERGEANT",   desc:"Marksman"},
+  {cls:"B_recon_LAT_F",   rank:"SERGEANT",   desc:"Anti-Tank"},
+  {cls:"B_recon_medic_F", rank:"SERGEANT",   desc:"Medic"},
+  {cls:"B_recon_exp_F",   rank:"CORPORAL",   desc:"Demolitions"},
+  {cls:"B_recon_JTAC_F",  rank:"CORPORAL",   desc:"JTAC"},
+  {cls:"B_recon_F",       rank:"CORPORAL",   desc:"Rifleman"},
+  {cls:"B_recon_F",       rank:"PRIVATE",    desc:"Rifleman"}
+];
+
+/* --- deterministic RNG --- */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function mkRnd(seed){
+  var r = mulberry32(seed >>> 0);
+  return {
+    f: r,
+    range: function(a,b){ return a + r()*(b-a); },
+    int: function(a,b){ return Math.floor(a + r()*(b-a+1)); },
+    pick: function(arr){ return arr[Math.floor(r()*arr.length)]; }
+  };
+}
+
+/* --- formatting --- */
+function num(v){
+  var r = Math.round(v*1e4)/1e4;
+  if (Object.is(r,-0)) r = 0;
+  return String(r);
+}
+function gridRef(x,y){
+  var e = Math.floor(x/100), n = Math.floor(y/100);
+  var p = function(v){ return ("00"+v).slice(-3); };
+  return p(e)+p(n);
+}
+function bearingTo(x1,y1,x2,y2){
+  var b = Math.atan2(x2-x1, y2-y1)*180/Math.PI;
+  return (b+360)%360;
+}
+function slugify(s){
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"") || "op";
+}
+
+/* --- roll a plan --- */
+function rollPlan(cfg){
+  var rnd  = mkRnd(cfg.seed);
+  var op   = OPS[cfg.opKey];
+  var fac  = FACTIONS[cfg.factionKey];
+  var str  = STRENGTH[cfg.strength];
+  var cx   = cfg.x, cy = cfg.y;
+
+  // insertion point
+  var brg = cfg.insBrg * Math.PI/180;
+  var ins = { x: cx + Math.sin(brg)*cfg.insDist, y: cy + Math.cos(brg)*cfg.insDist };
+
+  // decide how many template groups survive at this strength
+  var tmpl = op.groups.slice();
+  var keep = Math.max(2, Math.round(tmpl.length * str.groups));
+  if (keep < tmpl.length) tmpl = tmpl.slice(0, keep);
+
+  var groups = [], total = 0;
+  var baseAngle = rnd.range(0, Math.PI*2);
+
+  for (var gi=0; gi<tmpl.length; gi++){
+    var t = tmpl[gi];
+    var roles = t.roles.slice();
+    var target = Math.max(2, Math.round(roles.length * str.mul));
+    while (roles.length < target) roles.push(rnd.pick(["rifle","rifle","ar","gl","lat"]));
+    while (roles.length > target) roles.pop();
+
+    var patrol = t.patrol && cfg.waypoints;
+    var ga = baseAngle + gi * (Math.PI*2/tmpl.length) + rnd.range(-0.35,0.35);
+    var ring = t.patrol ? rnd.range(cfg.patrolRadius*0.55, cfg.patrolRadius*0.85) : t.ring;
+    var gx = cx + Math.sin(ga)*ring;
+    var gy = cy + Math.cos(ga)*ring;
+    var facing = t.patrol ? rnd.range(0,Math.PI*2) : Math.atan2(gx-cx, gy-cy);
+
+    var units = [];
+    for (var ui=0; ui<roles.length; ui++){
+      var role = roles[ui];
+      var cls  = fac.roster[role] || fac.roster.rifle;
+      var ua   = rnd.range(0, Math.PI*2);
+      var ud   = ui === 0 ? 0 : rnd.range(3, 4 + roles.length*2.6);
+      units.push({
+        cls: cls,
+        role: role,
+        x: gx + Math.sin(ua)*ud,
+        y: gy + Math.cos(ua)*ud,
+        dir: facing + rnd.range(-0.5,0.5),
+        rank: ui===0 ? "SERGEANT" : (ui===1 ? "CORPORAL" : "PRIVATE")
+      });
+    }
+    total += units.length;
+
+    var wps = [];
+    if (patrol){
+      var legs = rnd.int(4,6);
+      var wa0  = rnd.range(0,Math.PI*2);
+      for (var wi=0; wi<legs; wi++){
+        var wa = wa0 + wi*(Math.PI*2/legs) + rnd.range(-0.25,0.25);
+        var wr = cfg.patrolRadius * rnd.range(0.6,1.0);
+        wps.push({ x: cx + Math.sin(wa)*wr, y: cy + Math.cos(wa)*wr });
+      }
+    }
+
+    groups.push({
+      name: t.name, x: gx, y: gy, patrol: patrol,
+      units: units, waypoints: wps
+    });
+  }
+
+  var tasks = op.tasks.slice(0, cfg.objectives);
+
+  return {
+    op: op, fac: fac, str: str,
+    center: {x:cx, y:cy}, insertion: ins,
+    groups: groups, total: total, tasks: tasks,
+    bearingHome: (cfg.insBrg + 180) % 360
+  };
+}
+
+/* --- emit mission.sqm --- */
+function buildSQM(plan, cfg){
+  var L = [];
+  var id = 0;
+  var nid = function(){ return id++; };
+  function w(d, s){ L.push(new Array(d+1).join("\t") + s); }
+  function open(d, s){ w(d,s); w(d,"{"); }
+  function close(d, semi){ w(d, semi===false ? "}" : "};"); }
+  function pos(d, x, y){ w(d, "position[]={"+num(x)+",0,"+num(y)+"};"); }
+
+  var name    = cfg.missionName || (plan.op.label + " - " + cfg.anchor);
+  var opSlug  = slugify(cfg.anchor + " " + plan.op.label);
+  var snapInit = "{_x setPosATL [(getPosATL _x) select 0,(getPosATL _x) select 1,0]} forEach units group this;";
+
+  /* ---- header ---- */
+  w(0,"version=54;");
+  open(0,"class EditorData");
+    w(1,"moveGridStep=1;");
+    w(1,"angleGridStep=0.2617994;");
+    w(1,"scaleGridStep=1;");
+    w(1,"autoGroupingDist=10;");
+    w(1,"toggles=1;");
+    open(1,"class ItemIDProvider"); w(2,"nextID=__NEXTID__;"); close(1);
+    open(1,"class MarkerIDProvider"); w(2,"nextID=1;"); close(1);
+    open(1,"class LayerIndexProvider"); w(2,"nextID=12;"); close(1);
+    open(1,"class Camera");
+      w(2,"pos[]={"+num(plan.insertion.x)+",250,"+num(plan.insertion.y)+"};");
+      w(2,"dir[]={0,-0.70710695,0.70710671};");
+      w(2,"up[]={0,0.70710665,0.70710689};");
+      w(2,"aside[]={0.99999994,0,0};");
+    close(1);
+  close(0);
+  w(0,"binarizationWanted=0;");
+  w(0,'sourceName="'+opSlug+'";');
+  w(0,"addons[]=");
+  w(0,"{");
+  var addons = ['"A3_Ui_F"','"A3_Characters_F"'];
+  if (cfg.zeus) addons.push('"A3_Data_F_Curator_Virtual"','"A3_Modules_F_Curator_Curator"','"A3_Data_F_Exp_A_Virtual"');
+  for (var ai=0; ai<addons.length; ai++) w(1, addons[ai] + (ai<addons.length-1 ? "," : ""));
+  w(0,"};");
+  open(0,"class AddonsMetaData");
+    open(1,"class List");
+      var meta = [
+        {c:"A3_Ui_F", n:"Arma 3 - User Interface"},
+        {c:"A3_Characters_F", n:"Arma 3 Alpha - Characters and Clothing"}
+      ];
+      if (cfg.zeus) meta = meta.concat([
+        {c:"A3_Data_F_Curator", n:"Arma 3 Zeus Update - Main Configuration"},
+        {c:"A3_Modules_F_Curator", n:"Arma 3 Zeus Update - Scripted Modules"},
+        {c:"A3_Data_F_Exp_A", n:"Arma 3 Nexus Update - Main Configuration"}
+      ]);
+      w(2,"items="+meta.length+";");
+      for (var mi=0; mi<meta.length; mi++){
+        open(2,"class Item"+mi);
+          w(3,'className="'+meta[mi].c+'";');
+          w(3,'name="'+meta[mi].n+'";');
+          w(3,'author="Bohemia Interactive";');
+          w(3,'url="https://www.arma3.com";');
+        close(2);
+      }
+    close(1);
+  close(0);
+  w(0,"randomSeed="+(cfg.seed>>>0)+";");
+  open(0,"class ScenarioData");
+    w(1,'author="'+cfg.author.replace(/"/g,'""')+'";');
+  close(0);
+
+  open(0,"class Mission");
+    var wx = WEATHER[cfg.weather];
+    open(1,"class Intel");
+      w(2,"briefingName=\""+name.replace(/"/g,'""')+"\";");
+      w(2,"timeOfChanges=1800.0002;");
+      w(2,"startWeather="+num(wx.o)+";");
+      w(2,"startWind="+num(wx.w)+";");
+      w(2,"startWaves="+num(wx.waves)+";");
+      w(2,"forecastWeather="+num(wx.o)+";");
+      w(2,"forecastWind="+num(wx.w)+";");
+      w(2,"forecastWaves="+num(wx.waves)+";");
+      w(2,"forecastLightnings="+num(wx.o>0.8?0.6:0.1)+";");
+      w(2,"year=2035;");
+      w(2,"month=6;");
+      w(2,"day=24;");
+      w(2,"hour="+cfg.hour+";");
+      w(2,"minute=0;");
+      w(2,"startFogDecay="+num(wx.fog)+";");
+      w(2,"forecastFogDecay="+num(wx.fog)+";");
+    close(1);
+
+    /* ---- top level entities ---- */
+    var top = [];
+
+    /* start marker */
+    top.push(function(d){
+      open(d,"class __ITEM__");
+        w(d+1,'dataType="Marker";');
+        pos(d+1, plan.insertion.x, plan.insertion.y);
+        w(d+1,'name="start";');
+        w(d+1,'type="hd_start";');
+        w(d+1,'colorName="ColorBlue";');
+        w(d+1,"id="+nid()+";");
+      close(d);
+    });
+
+    /* objective area marker */
+    top.push(function(d){
+      open(d,"class __ITEM__");
+        w(d+1,'dataType="Marker";');
+        pos(d+1, plan.center.x, plan.center.y);
+        w(d+1,'name="op_area";');
+        w(d+1,'markerType="ELLIPSE";');
+        w(d+1,'type="Empty";');
+        w(d+1,'colorName="ColorOPFOR";');
+        w(d+1,'fillName="Border";');
+        w(d+1,"a="+num(plan.op.core+cfg.patrolRadius*0.5)+";");
+        w(d+1,"b="+num(plan.op.core+cfg.patrolRadius*0.5)+";");
+        w(d+1,"alpha=0.75;");
+        w(d+1,"id="+nid()+";");
+      close(d);
+    });
+
+    /* objective label marker */
+    top.push(function(d){
+      open(d,"class __ITEM__");
+        w(d+1,'dataType="Marker";');
+        pos(d+1, plan.center.x, plan.center.y);
+        w(d+1,'name="op_marker";');
+        w(d+1,'text="'+plan.op.label.replace(/"/g,'""')+'";');
+        w(d+1,'type="o_installation";');
+        w(d+1,'colorName="ColorOPFOR";');
+        w(d+1,"id="+nid()+";");
+      close(d);
+    });
+
+    /* player group */
+    top.push(function(d){
+      var slots = PLAYER_SLOTS.slice(0, cfg.squad);
+      open(d,"class __ITEM__");
+        w(d+1,'dataType="Group";');
+        w(d+1,'side="West";');
+        open(d+1,"class Entities");
+          w(d+2,"items="+slots.length+";");
+          for (var si=0; si<slots.length; si++){
+            var s = slots[si];
+            var ang = si * (Math.PI*2/slots.length);
+            open(d+2,"class Item"+si);
+              w(d+3,'dataType="Object";');
+              open(d+3,"class PositionInfo");
+                pos(d+4, plan.insertion.x + Math.sin(ang)*(si?4.5:0), plan.insertion.y + Math.cos(ang)*(si?4.5:0));
+                w(d+4,"angles[]={0,"+num(plan.bearingHome*Math.PI/180)+",0};");
+              close(d+3);
+              w(d+3,'side="West";');
+              w(d+3,"flags="+(si===0?7:5)+";");
+              open(d+3,"class Attributes");
+                w(d+4,"skill=1;");
+                w(d+4,'rank="'+s.rank+'";');
+                w(d+4,'name="p'+(si+1)+'";');
+                w(d+4,'description="'+s.desc+'";');
+                w(d+4, si===0 ? "isPlayer=1;" : "isPlayable=1;");
+              close(d+3);
+              w(d+3,"id="+nid()+";");
+              w(d+3,'type="'+s.cls+'";');
+            close(d+2);
+          }
+        close(d+1);
+        open(d+1,"class Attributes"); close(d+1);
+        w(d+1,"id="+nid()+";");
+      close(d);
+    });
+
+    /* enemy layer */
+    top.push(function(d){
+      open(d,"class __ITEM__");
+        w(d+1,'dataType="Layer";');
+        w(d+1,'name="'+plan.fac.tag+' - '+plan.op.label+'";');
+        open(d+1,"class Entities");
+          w(d+2,"items="+plan.groups.length+";");
+          for (var gi=0; gi<plan.groups.length; gi++){
+            var g = plan.groups[gi];
+            var count = g.units.length + (g.waypoints.length ? g.waypoints.length : 0);
+            open(d+2,"class Item"+gi);
+              w(d+3,'dataType="Group";');
+              w(d+3,'side="'+plan.fac.side+'";');
+              open(d+3,"class Entities");
+                w(d+4,"items="+count+";");
+                var slot = 0;
+                for (var ui=0; ui<g.units.length; ui++, slot++){
+                  var u = g.units[ui];
+                  open(d+4,"class Item"+slot);
+                    w(d+5,'dataType="Object";');
+                    open(d+5,"class PositionInfo");
+                      pos(d+6, u.x, u.y);
+                      w(d+6,"angles[]={0,"+num((u.dir+Math.PI*2)%(Math.PI*2))+",0};");
+                    close(d+5);
+                    w(d+5,'side="'+plan.fac.side+'";');
+                    w(d+5,"flags="+(ui===0?7:5)+";");
+                    open(d+5,"class Attributes");
+                      w(d+6,"skill="+num(cfg.skill)+";");
+                      w(d+6,'rank="'+u.rank+'";');
+                      if (ui===0){
+                        w(d+6,'name="'+slugify(g.name)+"_"+gi+'";');
+                        if (cfg.snap) w(d+6,'init="'+snapInit+'";');
+                      }
+                    close(d+5);
+                    w(d+5,"id="+nid()+";");
+                    w(d+5,'type="'+u.cls+'";');
+                  close(d+4);
+                }
+                for (var wi=0; wi<g.waypoints.length; wi++, slot++){
+                  var p = g.waypoints[wi];
+                  var last = (wi === g.waypoints.length-1);
+                  open(d+4,"class Item"+slot);
+                    w(d+5,'dataType="Waypoint";');
+                    pos(d+5, p.x, p.y);
+                    w(d+5,"completitionRadius=25;");
+                    if (last) w(d+5,'type="Cycle";');
+                    open(d+5,"class Effects"); close(d+5);
+                    w(d+5,'showWP="NEVER";');
+                    w(d+5,"id="+nid()+";");
+                  close(d+4);
+                }
+              close(d+3);
+              open(d+3,"class Attributes"); close(d+3);
+              w(d+3,"id="+nid()+";");
+            close(d+2);
+          }
+        close(d+1);
+      close(d);
+    });
+
+    /* zeus + spectators */
+    if (cfg.zeus){
+      top.push(function(d){
+        var zx = plan.insertion.x, zy = plan.insertion.y - 30;
+        open(d,"class __ITEM__");
+          w(d+1,'dataType="Layer";');
+          w(d+1,'name="Spectator and Zeus";');
+          open(d+1,"class Entities");
+            w(d+2,"items=2;");
+
+            /* --- zeus + mission-end triggers --- */
+            open(d+2,"class Item0");
+              w(d+3,'dataType="Layer";');
+              w(d+3,'name="Zeus and Objs";');
+              open(d+3,"class Entities");
+                var zeusNames = [["zeus1","Zeus","Game Master"],["zeus2","Jupiter","Assistant Game Master"],["zeus3","Odin","Assistant Game Master"]];
+                w(d+4,"items="+(2 + zeusNames.length*2)+";");
+                var zi = 0;
+
+                /* victory trigger */
+                var winCond = plan.tasks.map(function(_,i){ return '""task'+(i+1)+'""'; }).join(", ");
+                open(d+4,"class Item"+(zi++));
+                  w(d+5,'dataType="Trigger";');
+                  pos(d+5, zx, zy+6);
+                  open(d+5,"class Attributes");
+                    w(d+6,'text="VICTORY";');
+                    w(d+6,'condition="['+winCond+'] call FHQ_fnc_ttAreTasksSuccessful";');
+                    w(d+6,'onActivation="[""win""] remoteExecCall [""BIS_fnc_endMission""];";');
+                    w(d+6,"sizeA=0;");
+                    w(d+6,"sizeB=0;");
+                    w(d+6,"timeout[]={5,5,5};");
+                    w(d+6,"interuptable=1;");
+                  close(d+5);
+                  w(d+5,"id="+nid()+";");
+                  w(d+5,'type="EmptyDetector";');
+                close(d+4);
+
+                /* wipe trigger */
+                open(d+4,"class Item"+(zi++));
+                  w(d+5,'dataType="Trigger";');
+                  pos(d+5, zx+2, zy+6);
+                  open(d+5,"class Attributes");
+                    w(d+6,'text="End Mission When All Dead";');
+                    w(d+6,'condition="(count FHQ_playableUnits) == 0";');
+                    w(d+6,'onActivation="[""lose"", false] remoteExecCall [""BIS_fnc_endMission""];";');
+                    w(d+6,"sizeA=0;");
+                    w(d+6,"sizeB=0;");
+                    w(d+6,"timeout[]={1,1,1};");
+                  close(d+5);
+                  w(d+5,"id="+nid()+";");
+                  w(d+5,'type="EmptyDetector";');
+                close(d+4);
+
+                /* curator slots */
+                for (var ci=0; ci<zeusNames.length; ci++){
+                  open(d+4,"class Item"+(zi++));
+                    w(d+5,'dataType="Logic";');
+                    open(d+5,"class PositionInfo"); pos(d+6, zx + ci*1.5, zy+2); close(d+5);
+                    w(d+5,'name="'+zeusNames[ci][0]+'";');
+                    w(d+5,"isPlayable=1;");
+                    w(d+5,'description="'+zeusNames[ci][1]+'";');
+                    w(d+5,"id="+nid()+";");
+                    w(d+5,'type="VirtualCurator_F";');
+                  close(d+4);
+                }
+
+                /* curator modules */
+                for (var mi2=0; mi2<zeusNames.length; mi2++){
+                  open(d+4,"class Item"+(zi++));
+                    w(d+5,'dataType="Logic";');
+                    open(d+5,"class PositionInfo"); pos(d+6, zx + mi2*1.5, zy); close(d+5);
+                    w(d+5,'name="zeus_mod'+(mi2+1)+'";');
+                    w(d+5,"id="+nid()+";");
+                    w(d+5,'type="ModuleCurator_F";');
+                    open(d+5,"class CustomAttributes");
+                      var attrs = [
+                        ["ModuleCurator_F_Owner","_this setVariable ['Owner',_value,true];","STRING",'"'+zeusNames[mi2][0]+'"'],
+                        ["ModuleCurator_F_Forced","_this setVariable ['Forced',_value,true];","SCALAR","1"],
+                        ["ModuleCurator_F_Name","_this setVariable ['Name',_value,true];","STRING",'"'+zeusNames[mi2][2]+'"'],
+                        ["ModuleInfo","false","BOOL","1"],
+                        ["ModuleCurator_F_Addons","_this setVariable ['Addons',_value,true];","SCALAR","2"]
+                      ];
+                      for (var qi=0; qi<attrs.length; qi++){
+                        open(d+6,"class Attribute"+qi);
+                          w(d+7,'property="'+attrs[qi][0]+'";');
+                          w(d+7,'expression="'+attrs[qi][1]+'";');
+                          open(d+7,"class Value");
+                            open(d+8,"class data");
+                              w(d+9,'singleType="'+attrs[qi][2]+'";');
+                              w(d+9,"value="+attrs[qi][3]+";");
+                            close(d+8);
+                          close(d+7);
+                        close(d+6);
+                      }
+                      w(d+6,"nAttributes="+attrs.length+";");
+                    close(d+5);
+                  close(d+4);
+                }
+              close(d+3);
+            close(d+2);
+
+            /* --- spectators --- */
+            open(d+2,"class Item1");
+              w(d+3,'dataType="Layer";');
+              w(d+3,'name="Spectators";');
+              open(d+3,"class Entities");
+                w(d+4,"items=16;");
+                for (var sp=0; sp<16; sp++){
+                  open(d+4,"class Item"+sp);
+                    w(d+5,'dataType="Logic";');
+                    open(d+5,"class PositionInfo"); pos(d+6, zx + (sp%8)*1.2, zy - 4 - Math.floor(sp/8)*1.2); close(d+5);
+                    w(d+5,'name="spec'+(sp+1)+'";');
+                    w(d+5,"isPlayable=1;");
+                    w(d+5,'description="Spectator '+(sp+1)+'";');
+                    w(d+5,"id="+nid()+";");
+                    w(d+5,'type="VirtualSpectator_F";');
+                  close(d+4);
+                }
+              close(d+3);
+            close(d+2);
+
+          close(d+1);
+        close(d);
+      });
+    }
+
+    /* task triggers */
+    if (cfg.fhq){
+      for (var ti=0; ti<plan.tasks.length; ti++){
+        (function(t){
+          var tx = plan.insertion.x - 12 + t*3, ty = plan.insertion.y - 40;
+          top.push(function(d){
+            open(d,"class __ITEM__");
+              w(d+1,'dataType="Trigger";');
+              pos(d+1, tx, ty);
+              open(d+1,"class Attributes");
+                w(d+2,'text="obj'+(t+1)+' complete";');
+                w(d+2,'onActivation="[""task'+(t+1)+'"", ""succeeded""] call FHQ_fnc_ttSetTaskState;";');
+                w(d+2,"sizeA=0;");
+                w(d+2,"sizeB=0;");
+                w(d+2,"interuptable=1;");
+              close(d+1);
+              w(d+1,"id="+nid()+";");
+              w(d+1,'type="EmptyDetector";');
+            close(d);
+          });
+          top.push(function(d){
+            open(d,"class __ITEM__");
+              w(d+1,'dataType="Trigger";');
+              pos(d+1, tx, ty-1.5);
+              open(d+1,"class Attributes");
+                w(d+2,'text="obj'+(t+1)+' saveGame";');
+                w(d+2,'condition="[""task'+(t+1)+'""] call FHQ_fnc_ttIsTaskSuccessful && !isMultiplayer";');
+                w(d+2,'onActivation="saveGame;";');
+                w(d+2,"sizeA=0;");
+                w(d+2,"sizeB=0;");
+                w(d+2,"timeout[]={3,3,3};");
+                w(d+2,"interuptable=1;");
+              close(d+1);
+              w(d+1,"id="+nid()+";");
+              w(d+1,'type="EmptyDetector";');
+            close(d);
+          });
+        })(ti);
+      }
+    }
+
+    open(1,"class Entities");
+      w(2,"items="+top.length+";");
+      for (var k=0; k<top.length; k++){
+        var mark = L.length;
+        top[k](2);
+        L[mark] = L[mark].replace("__ITEM__","Item"+k);
+      }
+    close(1);
+  close(0);
+
+  var out = L.join("\r\n").replace("__NEXTID__", String(id)) + "\r\n";
+  return out;
+}
+/* ===================== END CORE ===================== */
+
+if (typeof module !== "undefined" && module.exports){
+  module.exports = { TOWNS:TOWNS, FACTIONS:FACTIONS, OPS:OPS, STRENGTH:STRENGTH,
+                     WEATHER:WEATHER, rollPlan:rollPlan, buildSQM:buildSQM, gridRef:gridRef };
+}
+
+/* ===================== UI ===================== */
+if (typeof document !== "undefined") (function(){
+
+var WORLD = 30720;
+var $ = function(s){ return document.getElementById(s); };
+
+var cfg = {
+  seed: 482913,
+  x: 16780.6, y: 12604.5, anchor: "Pyrgos",
+  opKey: "checkpoint", factionKey: "csat",
+  strength: 1, skill: 0.55, patrolRadius: 250,
+  insDist: 900, insBrg: 225, squad: 4, objectives: 3,
+  waypoints: true, zeus: true, fhq: true, snap: true,
+  missionName: "", author: "Phantom Six", hour: 12, weather: "fair"
+};
+var plan = null, sqmText = "";
+
+/* --- populate selects --- */
+(function(){
+  var a = $("anchor");
+  TOWNS.forEach(function(t){
+    var o = document.createElement("option");
+    o.value = t.n; o.textContent = t.n + "  " + gridRef(t.x,t.y);
+    a.appendChild(o);
+  });
+  a.value = "Pyrgos";
+
+  var o1 = $("op");
+  Object.keys(OPS).forEach(function(k){
+    var o = document.createElement("option");
+    o.value = k; o.textContent = OPS[k].label; o1.appendChild(o);
+  });
+
+  var f = $("faction");
+  Object.keys(FACTIONS).forEach(function(k){
+    var o = document.createElement("option");
+    o.value = k; o.textContent = FACTIONS[k].label; f.appendChild(o);
+  });
+
+  var h = $("hour");
+  [[4,"04:00 pre-dawn"],[6,"06:00 dawn"],[9,"09:00 morning"],[12,"12:00 midday"],
+   [16,"16:00 afternoon"],[19,"19:00 dusk"],[22,"22:00 night"],[1,"01:00 night"]].forEach(function(p){
+    var o = document.createElement("option"); o.value = p[0]; o.textContent = p[1]; h.appendChild(o);
+  });
+  h.value = 12;
+
+  var wsel = $("weather");
+  Object.keys(WEATHER).forEach(function(k){
+    var o = document.createElement("option"); o.value = k; o.textContent = WEATHER[k].label; wsel.appendChild(o);
+  });
+  wsel.value = "fair";
+})();
+
+/* --- canvas --- */
+var cv = $("map"), ctx = cv.getContext("2d"), CS = 700;
+function sizeCanvas(){
+  var r = cv.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  CS = Math.max(320, Math.round(r.width));
+  cv.width = CS*dpr; cv.height = CS*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+var toPx = function(wx,wy){ return { px: wx/WORLD*CS, py: (1 - wy/WORLD)*CS }; };
+var toWorld = function(px,py){ return { x: px/CS*WORLD, y: (1 - py/CS)*WORLD }; };
+
+function drawMap(){
+  sizeCanvas();
+  ctx.clearRect(0,0,CS,CS);
+
+  // paper
+  var g = ctx.createLinearGradient(0,0,CS,CS);
+  g.addColorStop(0,"#d2d0af"); g.addColorStop(1,"#c2c09e");
+  ctx.fillStyle = g; ctx.fillRect(0,0,CS,CS);
+
+  // 1 km grid
+  ctx.lineWidth = 1;
+  for (var i=0; i<=30; i++){
+    var p = i*1000/WORLD*CS;
+    ctx.strokeStyle = (i%5===0) ? "rgba(45,54,34,.42)" : "rgba(45,54,34,.16)";
+    ctx.beginPath(); ctx.moveTo(p,0); ctx.lineTo(p,CS); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,CS-p); ctx.lineTo(CS,CS-p); ctx.stroke();
+  }
+  // grid labels
+  ctx.fillStyle = "rgba(34,38,27,.55)";
+  ctx.font = "9px ui-monospace, monospace";
+  for (var j=0; j<=30; j+=5){
+    var q = j*1000/WORLD*CS;
+    ctx.fillText(("0"+j).slice(-3), q+3, 11);
+    ctx.fillText(("0"+j).slice(-3), 3, CS-q-4);
+  }
+
+  // settlements
+  TOWNS.forEach(function(t){
+    var p = toPx(t.x,t.y);
+    ctx.fillStyle = "rgba(34,38,27,.62)";
+    ctx.beginPath(); ctx.arc(p.px,p.py,2,0,7); ctx.fill();
+    if (CS > 420){
+      ctx.font = "9px ui-monospace, monospace";
+      ctx.fillStyle = "rgba(34,38,27,.5)";
+      ctx.fillText(t.n, p.px+4, p.py-3);
+    }
+  });
+
+  if (!plan) return;
+  var c = toPx(plan.center.x, plan.center.y);
+  var ins = toPx(plan.insertion.x, plan.insertion.y);
+  var scale = CS/WORLD;
+
+  // patrol radius
+  ctx.strokeStyle = "rgba(191,59,44,.55)";
+  ctx.setLineDash([4,4]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(c.px,c.py, cfg.patrolRadius*scale, 0, 7); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // core
+  ctx.fillStyle = "rgba(191,59,44,.16)";
+  ctx.beginPath(); ctx.arc(c.px,c.py, Math.max(3, plan.op.core*scale), 0, 7); ctx.fill();
+
+  // insertion vector
+  ctx.strokeStyle = "rgba(59,122,181,.8)";
+  ctx.setLineDash([6,4]);
+  ctx.beginPath(); ctx.moveTo(ins.px,ins.py); ctx.lineTo(c.px,c.py); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // enemy groups
+  plan.groups.forEach(function(gr){
+    var p = toPx(gr.x, gr.y);
+    ctx.fillStyle = gr.patrol ? "rgba(191,59,44,.55)" : "#bf3b2c";
+    ctx.beginPath();
+    ctx.moveTo(p.px, p.py-4); ctx.lineTo(p.px+4, p.py); ctx.lineTo(p.px, p.py+4); ctx.lineTo(p.px-4, p.py);
+    ctx.closePath(); ctx.fill();
+  });
+
+  // objective diamond
+  ctx.strokeStyle = "#8f2015"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(c.px, c.py-8); ctx.lineTo(c.px+8, c.py); ctx.lineTo(c.px, c.py+8); ctx.lineTo(c.px-8, c.py);
+  ctx.closePath(); ctx.stroke();
+
+  // insertion mark
+  ctx.strokeStyle = "#2b5c8a"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(ins.px,ins.py,6,0,7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ins.px-9,ins.py); ctx.lineTo(ins.px+9,ins.py); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ins.px,ins.py-9); ctx.lineTo(ins.px,ins.py+9); ctx.stroke();
+}
+
+/* --- interaction --- */
+function place(ev){
+  var r = cv.getBoundingClientRect();
+  var t = ev.touches ? ev.touches[0] : ev;
+  var wpt = toWorld(t.clientX - r.left, t.clientY - r.top);
+  cfg.x = Math.max(0, Math.min(WORLD, wpt.x));
+  cfg.y = Math.max(0, Math.min(WORLD, wpt.y));
+  cfg.anchor = nearestTown(cfg.x, cfg.y).n;
+  $("anchor").value = cfg.anchor;
+  regenerate();
+}
+function nearestTown(x,y){
+  var best = TOWNS[0], bd = Infinity;
+  TOWNS.forEach(function(t){
+    var d = (t.x-x)*(t.x-x) + (t.y-y)*(t.y-y);
+    if (d < bd){ bd = d; best = t; }
+  });
+  return best;
+}
+var dragging = false;
+cv.addEventListener("pointerdown", function(e){ dragging = true; cv.setPointerCapture(e.pointerId); place(e); });
+cv.addEventListener("pointermove", function(e){ if (dragging) place(e); });
+cv.addEventListener("pointerup",   function(){ dragging = false; });
+window.addEventListener("resize", drawMap);
+
+/* --- wiring --- */
+function readInputs(){
+  cfg.seed        = parseInt($("seed").value, 10) || 1;
+  cfg.opKey       = $("op").value;
+  cfg.factionKey  = $("faction").value;
+  cfg.strength    = parseInt($("strength").value,10);
+  cfg.skill       = parseFloat($("skill").value);
+  cfg.patrolRadius= parseInt($("patrol").value,10);
+  cfg.insDist     = parseInt($("insDist").value,10);
+  cfg.insBrg      = parseInt($("insBrg").value,10);
+  cfg.squad       = parseInt($("squad").value,10);
+  cfg.objectives  = parseInt($("objectives").value,10);
+  cfg.waypoints   = $("waypoints").checked;
+  cfg.zeus        = $("zeus").checked;
+  cfg.fhq         = $("fhq").checked;
+  cfg.snap        = $("snap").checked;
+  cfg.missionName = $("mname").value.trim();
+  cfg.author      = $("author").value.trim() || "Unknown";
+  cfg.hour        = parseInt($("hour").value,10);
+  cfg.weather     = $("weather").value;
+}
+
+function regenerate(){
+  readInputs();
+  $("offX").value = Math.round(cfg.x);
+  $("offY").value = Math.round(cfg.y);
+  $("anchorName").textContent = cfg.anchor;
+
+  $("vStrength").textContent  = STRENGTH[cfg.strength].label;
+  $("vSkill").textContent     = cfg.skill.toFixed(2);
+  $("vPatrol").textContent    = cfg.patrolRadius + " m";
+  $("vInsDist").textContent   = cfg.insDist + " m";
+  $("vInsBrg").textContent    = cfg.insBrg + "\u00B0";
+  $("vSquad").textContent     = cfg.squad;
+  $("vObjectives").textContent= cfg.objectives;
+
+  plan = rollPlan(cfg);
+  sqmText = buildSQM(plan, cfg);
+
+  $("rGrid").textContent  = gridRef(cfg.x, cfg.y);
+  $("rPos").textContent   = Math.round(cfg.x) + " / " + Math.round(cfg.y);
+  $("rIns").textContent   = cfg.insDist + " m @ " + cfg.insBrg + "\u00B0";
+  $("rEnemy").textContent = plan.total + " in " + plan.groups.length;
+
+  var nm = cfg.missionName || (plan.op.label + " \u2014 " + cfg.anchor);
+  $("brief").innerHTML =
+    '<span class="name">' + nm + '</span><br>' +
+    plan.fac.tag + " holds " + plan.op.site + " near " + cfg.anchor +
+    " at grid " + gridRef(cfg.x,cfg.y) + ". " +
+    "A " + cfg.squad + "-slot recon team inserts " + cfg.insDist + " m out on a bearing of " +
+    cfg.insBrg + "\u00B0 and closes on foot.";
+
+  var oob = plan.groups.map(function(g){
+    return '<li><span>' + g.name + (g.patrol ? " \u00B7 roving" : "") +
+           '</span><span class="n">' + g.units.length + '</span></li>';
+  }).join("");
+  oob += plan.tasks.map(function(t,i){
+    return '<li><span class="n">task' + (i+1) + '</span><span>' + t + '</span></li>';
+  }).join("");
+  $("oob").innerHTML = oob;
+
+  $("sqm").value = sqmText;
+  $("fileMeta").textContent = (sqmText.length/1024).toFixed(1) + " KB \u00B7 seed " + cfg.seed;
+  drawMap();
+}
+
+/* controls */
+["op","faction","strength","skill","patrol","insDist","insBrg","squad","objectives",
+ "waypoints","zeus","fhq","snap","mname","author","hour","weather","seed"].forEach(function(k){
+  $(k).addEventListener("input", regenerate);
+  $(k).addEventListener("change", regenerate);
+});
+
+$("anchor").addEventListener("change", function(){
+  var t = TOWNS.filter(function(x){ return x.n === $("anchor").value; })[0];
+  cfg.x = t.x; cfg.y = t.y; cfg.anchor = t.n;
+  regenerate();
+});
+
+["offX","offY"].forEach(function(k){
+  $(k).addEventListener("change", function(){
+    cfg.x = Math.max(0, Math.min(WORLD, parseFloat($("offX").value) || 0));
+    cfg.y = Math.max(0, Math.min(WORLD, parseFloat($("offY").value) || 0));
+    cfg.anchor = nearestTown(cfg.x, cfg.y).n;
+    $("anchor").value = cfg.anchor;
+    regenerate();
+  });
+});
+
+$("roll").addEventListener("click", function(){
+  var s = Math.floor(Math.random()*9e6) + 1;
+  $("seed").value = s;
+  var r = mkRnd(s);
+  var t = r.pick(TOWNS);
+  cfg.x = t.x + r.range(-900, 900);
+  cfg.y = t.y + r.range(-900, 900);
+  cfg.anchor = nearestTown(cfg.x, cfg.y).n;
+  $("anchor").value = cfg.anchor;
+  $("op").value      = r.pick(Object.keys(OPS));
+  $("faction").value = r.pick(Object.keys(FACTIONS));
+  $("strength").value= r.int(0,3);
+  $("patrol").value  = r.int(12,45)*10;
+  $("insDist").value = r.int(6,26)*50;
+  $("insBrg").value  = r.int(0,71)*5;
+  $("hour").value    = r.pick(["4","6","9","12","16","19","22","1"]);
+  $("weather").value = r.pick(Object.keys(WEATHER));
+  regenerate();
+});
+
+$("copy").addEventListener("click", function(){
+  var ta = $("sqm");
+  ta.removeAttribute("readonly");
+  ta.select(); ta.setSelectionRange(0, ta.value.length);
+  try { document.execCommand("copy"); } catch(e){}
+  ta.setAttribute("readonly","readonly");
+  window.getSelection().removeAllRanges();
+  var t = $("toast");
+  t.style.opacity = 1;
+  setTimeout(function(){ t.style.opacity = 0; }, 1400);
+});
+
+$("dl").addEventListener("click", function(){
+  var blob = new Blob([sqmText], {type:"text/plain;charset=utf-8"});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = "mission.sqm";
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+});
+
+regenerate();
+})();
+</script>
+</body>
+</html>
