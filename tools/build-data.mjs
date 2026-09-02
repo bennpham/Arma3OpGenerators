@@ -65,8 +65,12 @@ const MOD_TAGS = [
  * ace_explosives purely because ACE was loaded when the dump was extracted. They are
  * runtime compat patches, not content requirements: emitting them would make every
  * mission, including an all-vanilla one, hard-require ACE3. 259 usable units are affected.
+ *
+ * zen_* (Zeus Enhanced) and EF_Curator are the same thing one layer up — they attach to
+ * the vanilla Zeus modules rather than to units. No unit carries them today; stripped
+ * defensively so a future re-extraction cannot make Zeus missions require them.
  */
-const COMPAT_ADDON = /^(ace_|cba_)/i;
+const COMPAT_ADDON = /^(ace_|cba_|zen_|EF_Curator)/i;
 
 /*
  * mapSize is unreliable. 7 worlds report 0 (the documented gotcha), and 4 more report a

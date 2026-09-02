@@ -122,7 +122,7 @@ const G = loadCore();
 
 const DEFAULT_CFG = {
   seed: 482913, x: 16780.6, y: 12604.5, anchor: "Pyrgos",
-  opKey: "checkpoint", factionKey: "csat",
+  opKey: "checkpoint", factionKey: "EAST|OPF_F", playerFactionKey: "WEST|BLU_F",
   strength: 1, skill: 0.55, patrolRadius: 250,
   insDist: 900, insBrg: 225, squad: 4, objectives: 3,
   waypoints: true, zeus: true, fhq: true, snap: true,
@@ -137,8 +137,13 @@ const stripDerived = (s) => s
 
 const sha = (s) => createHash("sha256").update(s).digest("hex");
 
-/* Captured from the pre-multi-map generator at commit 0893b19, default config. */
-const GOLDEN_STRIPPED = "f708a80fead650e9c774ab644d603722691e5943db674bbe132607241f9a77b0";
+/*
+ * Captured from the pre-multi-map generator at commit 0893b19, default config, then
+ * updated once for a single reviewed change: the insertion marker's colorName moved from
+ * the hardcoded "ColorBlue" to "ColorBLUFOR", the player side's actual marker colour.
+ * Everything else about the default Altis / NATO-vs-CSAT mission is byte-identical.
+ */
+const GOLDEN_STRIPPED = "81e30525b1c95e9aed64255baf1eb38d220771a5dcac9c03345bca89c735f2fa";
 
 group("golden regression (default config)", () => {
   const sqm = G.buildSQM(G.rollPlan(DEFAULT_CFG), DEFAULT_CFG);
@@ -191,6 +196,64 @@ group("rosters resolve every role an op template asks for", () => {
     }
     ok(typeof fac.roster.rifle === "string" && fac.roster.rifle.length > 0,
       `${key}: has a rifle fallback (the :511 seam depends on it)`);
+  }
+});
+
+group("addons[] covers every unit classname emitted", () => {
+  /* Markers, triggers, Zeus and spectator logics are emitted by the generator itself,
+   * not drawn from a faction roster, so their requirements are the hardcoded vanilla
+   * entries rather than anything in the dumps. Only unit classnames are checked here. */
+  const rosterClasses = new Set();
+  for (const fac of Object.values(G.FACTIONS)) {
+    for (const c of Object.values(fac.roster)) rosterClasses.add(c);
+    for (const c of fac.slots || []) rosterClasses.add(c);
+  }
+
+  const combos = [
+    ["EAST|OPF_F", "WEST|BLU_F"],
+    ["EAST|O_PAVN", "WEST|B_MACV"],
+    ["WEST|CUP_B_USMC", "EAST|CUP_O_RU"],
+    ["EAST|gm_fc_gc", "WEST|gm_fc_ge"],
+    ["WEST|SPE_WEHRMACHT", "GUER|SPE_US_ARMY"],
+  ];
+
+  for (const [factionKey, playerFactionKey] of combos) {
+    if (!G.FACTIONS[factionKey] || !G.FACTIONS[playerFactionKey]) continue;
+    for (const opKey of Object.keys(G.OPS)) {
+      const cfg = { ...DEFAULT_CFG, factionKey, playerFactionKey, opKey, squad: 8 };
+      const plan = G.rollPlan(cfg);
+      const sqm = G.buildSQM(plan, cfg);
+
+      const declared = new Set(
+        [...sqm.matchAll(/^\t"([A-Za-z0-9_]+)",?$/gm)].map((m) => m[1]));
+      const emitted = [...new Set(
+        [...sqm.matchAll(/type="([A-Za-z0-9_]+)"/g)].map((m) => m[1]))]
+        .filter((c) => rosterClasses.has(c));
+
+      ok(emitted.length > 0, `${factionKey}/${opKey}: emits unit classnames`);
+
+      const required = new Set(G.addonsFor(
+        [G.FACTIONS[playerFactionKey], G.FACTIONS[factionKey]], emitted));
+      for (const a of required) {
+        ok(declared.has(a), `${factionKey}/${playerFactionKey}/${opKey}: addons[] declares ${a}`);
+      }
+      for (const a of declared) {
+        ok(!/^(ace_|cba_|zen_)/i.test(a),
+          `${factionKey}/${playerFactionKey}/${opKey}: addons[] must not require compat addon ${a}`);
+      }
+      eq(plan.unresolvedAddons.length, 0,
+        `${factionKey}/${playerFactionKey}/${opKey}: every emitted classname resolved its addons`);
+
+      /* Metadata that references an addon the mission does not declare is worse than
+       * no metadata: Eden shows a dependency the file cannot justify. The one legitimate
+       * mismatch is Eden's own parent naming — A3_Data_F_Curator_Virtual is declared in
+       * addons[] but its metadata parent is A3_Data_F_Curator — so a metadata entry that
+       * prefixes a declared addon counts as justified. */
+      for (const m of [...sqm.matchAll(/className="([^"]+)"/g)].map((x) => x[1])) {
+        ok([...declared].some((d) => d === m || d.startsWith(m + "_")),
+          `${factionKey}/${playerFactionKey}/${opKey}: AddonsMetaData ${m} is justified by addons[]`);
+      }
+    }
   }
 });
 

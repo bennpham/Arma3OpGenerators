@@ -2757,55 +2757,101 @@ var FACTION_DATA = [
 ];
 /* <<< END GENERATED: FACTION_DATA >>> */
 
-var TOWNS = [
- {n:"Abdera",x:9425.42,y:20284},{n:"Aggelochori",x:3687.78,y:13776.1},
- {n:"Agia Triada",x:16668.5,y:20487},{n:"Agios Dionysios",x:9187.95,y:15947.8},
- {n:"Agios Konstantinos",x:3948.77,y:17277.8},{n:"Agios Petros",x:19339.4,y:17641.6},
- {n:"Alikampos",x:11112.6,y:14573.7},{n:"Anthrakia",x:16584.3,y:16104},
- {n:"Athira",x:13993,y:18709.4},{n:"Chalkeia",x:20194.6,y:11660.7},
- {n:"Charkia",x:18049.1,y:15264.1},{n:"Delfinaki",x:23908.6,y:20144.7},
- {n:"Dorida",x:19336.9,y:13252.3},{n:"Ekali",x:17059.7,y:9992.32},
- {n:"Feres",x:21640.7,y:7583.93},{n:"Frini",x:14612.5,y:20786.7},
- {n:"Galati",x:10270.3,y:19036},{n:"Gravia",x:14479.8,y:17614.3},
- {n:"Ifestiona",x:12787,y:19679.3},{n:"Ioannina",x:23199.7,y:19986.6},
- {n:"Kalithea",x:17826.5,y:18129.4},{n:"Kalochori",x:21351.6,y:16361.9},
- {n:"Katalaki",x:11701.1,y:13672.1},{n:"Kavala",x:3458.95,y:12966.4},
- {n:"Kore",x:7062.42,y:16472.1},{n:"Koroni",x:11786.7,y:18372.4},
- {n:"Lakka",x:12282,y:15732.3},{n:"Molos",x:26943.9,y:23170.7},
- {n:"Negades",x:4885.98,y:16171.3},{n:"Neochori",x:12502,y:14337},
- {n:"Neri",x:4116.11,y:11736.1},{n:"Nifi",x:19473.3,y:15453.7},
- {n:"Oreokastro",x:4560.45,y:21460.6},{n:"Orino",x:10410.4,y:17243.1},
- {n:"Panagia",x:20490.2,y:8907.12},{n:"Panochori",x:5033.31,y:11245.2},
- {n:"Paros",x:20885.4,y:16958.8},{n:"Poliakko",x:10966.5,y:13435.3},
- {n:"Pyrgos",x:16780.6,y:12604.5},{n:"Rodopoli",x:18753.4,y:16597.1},
- {n:"Selakano",x:20769.8,y:6736.46},{n:"Sofia",x:25680.5,y:21365.1},
- {n:"Stavros",x:12950.1,y:15041.6},{n:"Syrta",x:8625.13,y:18301.6},
- {n:"Telos",x:16207,y:17296.7},{n:"Therisa",x:10618.9,y:12237.3},
- {n:"Topolia",x:7375.81,y:15429.5},{n:"Zaros",x:9091.81,y:11961.9}
-];
-
-var FACTIONS = {
-  csat: { label:"CSAT (OPFOR)", side:"East", tag:"CSAT", roster:{
-    sl:"O_Soldier_SL_F", tl:"O_Soldier_TL_F", rifle:"O_Soldier_F", ar:"O_Soldier_AR_F",
-    gl:"O_Soldier_GL_F", lat:"O_soldier_LAT_F", medic:"O_medic_F", marksman:"O_soldier_M_F",
-    sniper:"O_sniper_F", aa:"O_soldier_AA_F", officer:"O_officer_F", engineer:"O_engineer_F",
-    mg:"O_HeavyGunner_F" }},
-  csat_pac: { label:"CSAT Pacific (OPFOR)", side:"East", tag:"CSAT-P", roster:{
-    sl:"O_T_Soldier_SL_F", tl:"O_T_Soldier_TL_F", rifle:"O_T_Soldier_F", ar:"O_T_Soldier_AR_F",
-    gl:"O_T_Soldier_GL_F", lat:"O_T_Soldier_LAT_F", medic:"O_T_Medic_F", marksman:"O_T_Soldier_M_F",
-    sniper:"O_T_Sniper_F", aa:"O_T_Soldier_AA_F", officer:"O_T_Officer_F", engineer:"O_T_Engineer_F",
-    mg:"O_T_Soldier_HAT_F" }},
-  aaf: { label:"AAF (Independent)", side:"Independent", tag:"AAF", roster:{
-    sl:"I_Soldier_SL_F", tl:"I_Soldier_TL_F", rifle:"I_Soldier_F", ar:"I_Soldier_AR_F",
-    gl:"I_Soldier_GL_F", lat:"I_Soldier_LAT_F", medic:"I_medic_F", marksman:"I_Soldier_M_F",
-    sniper:"I_Sniper_F", aa:"I_Soldier_AA_F", officer:"I_officer_F", engineer:"I_engineer_F",
-    mg:"I_Soldier_AR_F" }},
-  fia: { label:"FIA (Independent)", side:"Independent", tag:"FIA", roster:{
-    sl:"I_G_Soldier_SL_F", tl:"I_G_Soldier_TL_F", rifle:"I_G_Soldier_F", ar:"I_G_Soldier_AR_F",
-    gl:"I_G_Soldier_GL_F", lat:"I_G_Soldier_LAT_F", medic:"I_G_medic_F", marksman:"I_G_Soldier_M_F",
-    sniper:"I_G_Sniper_F", aa:"I_G_Soldier_LAT_F", officer:"I_G_officer_F", engineer:"I_G_engineer_F",
-    mg:"I_G_Soldier_AR_F" }}
+/* --- worlds ---------------------------------------------------------------
+ * WORLD_DATA is generated. Anchors are keyed by INDEX, never by name: 110 Hill and
+ * Airport locations share a synthesized name pattern and 16 worlds repeat names within
+ * their own anchor set (Abel has 27 duplicates of 43), so a name lookup silently snaps
+ * to the wrong place.
+ */
+var ANCHOR_KIND = {
+  settle: { label:"Settlements", types:"Ccv" },
+  hill:   { label:"Hills",       types:"h"   },
+  air:    { label:"Airfields",   types:"a"   },
+  all:    { label:"All",         types:"Ccvha" }
 };
+
+function worldByName(name){
+  for (var i=0; i<WORLD_DATA.length; i++) if (WORLD_DATA[i].w === name) return WORLD_DATA[i];
+  return null;
+}
+
+/* Anchors of the requested kind, as {n,x,y,r,t} — the shape the generator and map use. */
+function anchorsFor(world, kind){
+  var want = (ANCHOR_KIND[kind] || ANCHOR_KIND.settle).types;
+  var out = [];
+  for (var i=0; i<world.l.length; i++){
+    var l = world.l[i];
+    if (want.indexOf(l[1]) < 0) continue;
+    out.push({ n:l[0], t:l[1], x:l[2], y:l[3], r:l[4] });
+  }
+  /* Never hand back an empty picker: a world with no hills still needs an anchor. */
+  if (!out.length && kind !== "settle") return anchorsFor(world, "settle");
+  return out;
+}
+
+/* --- factions -------------------------------------------------------------
+ * FACTION_DATA is generated; this indexes it by key and resolves the per-classname
+ * addon requirements. The roster interface the generator consumes is unchanged:
+ * `fac.roster[role] || fac.roster.rifle`.
+ */
+var FACTIONS = {};
+(function(){
+  for (var i=0; i<FACTION_DATA.length; i++){
+    var f = FACTION_DATA[i];
+    FACTIONS[f.k] = {
+      key: f.k, label: f.n, side: f.s, tag: f.t,
+      mod: f.m, coverage: f.c, roster: f.r, slots: f.p || null, addonsOf: f.a
+    };
+  }
+})();
+
+/* Addon classnames required by a set of emitted classnames. Compat entries (ace_*,
+ * cba_*) are already stripped at build time — they are patches applied to units, not
+ * content the mission depends on. */
+function addonsFor(factions, classnames){
+  var seen = {}, out = [];
+  for (var i=0; i<classnames.length; i++){
+    for (var fi=0; fi<factions.length; fi++){
+      var ids = factions[fi].addonsOf[classnames[i]];
+      if (!ids) continue;
+      for (var k=0; k<ids.length; k++){
+        var a = ADDONS[ids[k]];
+        if (!seen[a]){ seen[a] = 1; out.push(a); }
+      }
+      break;
+    }
+  }
+  return out.sort();
+}
+
+/* Which mod bundles a set of addon classnames belongs to, for the UI readout and
+ * for AddonsMetaData. */
+function modsFor(addons){
+  var seen = {}, out = [];
+  for (var i=0; i<addons.length; i++){
+    var id = modIdFor(addons[i]);
+    if (id && !seen[id]){ seen[id] = 1; out.push(id); }
+  }
+  return out;
+}
+
+/* Mirrors the prefix rules in tools/build-data.mjs. Kept short: the build fails on an
+ * addon that matches no rule, so anything reaching here is already known. */
+function modIdFor(addon){
+  if (/^A3_/.test(addon) || addon === "FIA") return "vanilla";
+  if (/^CUP_/.test(addon)) return "cup";
+  if (/^characters_f_vietnam|^cam_|^vn_/i.test(addon)) return "sog";
+  if (/^WW2_SPE/.test(addon)) return "spe";
+  if (/^gm_/.test(addon)) return "gm";
+  if (/^cwr3_/.test(addon)) return "cwr3";
+  if (/lxWS$|^Characters_f_lxWS|^characters_1_F_lxWS/i.test(addon)) return "ws";
+  if (/^RF_/.test(addon)) return "rf";
+  if (/^EF_/.test(addon)) return "ef";
+  if (/^CSLA/.test(addon)) return "csla";
+  if (/^US85/.test(addon)) return "us85";
+  if (/^AFMC/.test(addon)) return "afmc";
+  return null;
+}
 
 var OPS = {
   checkpoint: {
@@ -2893,16 +2939,35 @@ var WEATHER = {
   storm:   {label:"Storm",    o:1.00, w:0.60, waves:0.60, fog:0.030}
 };
 
+/*
+ * Player slots are role keys, not classnames, so any faction can crew them. A faction
+ * may pin an explicit team via its `slots` array (NATO's recon team is hand-picked and
+ * better than anything inference chooses out of BLU_F); otherwise the same
+ * `roster[role] || roster.rifle` seam the garrison uses fills each slot.
+ */
 var PLAYER_SLOTS = [
-  {cls:"B_recon_TL_F",    rank:"LIEUTENANT", desc:"Team Leader"},
-  {cls:"B_recon_M_F",     rank:"SERGEANT",   desc:"Marksman"},
-  {cls:"B_recon_LAT_F",   rank:"SERGEANT",   desc:"Anti-Tank"},
-  {cls:"B_recon_medic_F", rank:"SERGEANT",   desc:"Medic"},
-  {cls:"B_recon_exp_F",   rank:"CORPORAL",   desc:"Demolitions"},
-  {cls:"B_recon_JTAC_F",  rank:"CORPORAL",   desc:"JTAC"},
-  {cls:"B_recon_F",       rank:"CORPORAL",   desc:"Rifleman"},
-  {cls:"B_recon_F",       rank:"PRIVATE",    desc:"Rifleman"}
+  {role:"tl",       rank:"LIEUTENANT", desc:"Team Leader"},
+  {role:"marksman", rank:"SERGEANT",   desc:"Marksman"},
+  {role:"lat",      rank:"SERGEANT",   desc:"Anti-Tank"},
+  {role:"medic",    rank:"SERGEANT",   desc:"Medic"},
+  {role:"engineer", rank:"CORPORAL",   desc:"Demolitions"},
+  {role:"sl",       rank:"CORPORAL",   desc:"JTAC"},
+  {role:"rifle",    rank:"CORPORAL",   desc:"Rifleman"},
+  {role:"rifle",    rank:"PRIVATE",    desc:"Rifleman"}
 ];
+
+function slotClass(fac, i){
+  return (fac.slots && fac.slots[i]) || fac.roster[PLAYER_SLOTS[i].role] || fac.roster.rifle;
+}
+
+/* Eden marker type and colour per side. The generator previously hardcoded the OPFOR
+ * pair, so an Independent garrison was drawn in enemy red regardless. */
+var SIDE_MARKER = {
+  West:        { installation:"b_installation", color:"ColorBLUFOR" },
+  East:        { installation:"o_installation", color:"ColorOPFOR" },
+  Independent: { installation:"n_installation", color:"ColorIndependent" },
+  Civilian:    { installation:"c_unknown",      color:"ColorCivilian" }
+};
 
 /* --- deterministic RNG --- */
 function mulberry32(a){
@@ -2947,6 +3012,7 @@ function rollPlan(cfg){
   var rnd  = mkRnd(cfg.seed);
   var op   = OPS[cfg.opKey];
   var fac  = FACTIONS[cfg.factionKey];
+  var pfac = FACTIONS[cfg.playerFactionKey] || fac;
   var str  = STRENGTH[cfg.strength];
   var cx   = cfg.x, cy = cfg.y;
 
@@ -3013,7 +3079,7 @@ function rollPlan(cfg){
   var tasks = op.tasks.slice(0, cfg.objectives);
 
   return {
-    op: op, fac: fac, str: str,
+    op: op, fac: fac, pfac: pfac, str: str,
     center: {x:cx, y:cy}, insertion: ins,
     groups: groups, total: total, tasks: tasks,
     bearingHome: (cfg.insBrg + 180) % 360
@@ -3025,10 +3091,15 @@ function buildSQM(plan, cfg){
   var L = [];
   var id = 0;
   var nid = function(){ return id++; };
+  var used = {};                                   // classnames actually emitted
+  var use = function(cls){ used[cls] = 1; return cls; };
   function w(d, s){ L.push(new Array(d+1).join("\t") + s); }
   function open(d, s){ w(d,s); w(d,"{"); }
   function close(d, semi){ w(d, semi===false ? "}" : "};"); }
   function pos(d, x, y){ w(d, "position[]={"+num(x)+",0,"+num(y)+"};"); }
+
+  var enemyMark  = SIDE_MARKER[plan.fac.side]  || SIDE_MARKER.East;
+  var playerMark = SIDE_MARKER[plan.pfac.side] || SIDE_MARKER.West;
 
   var name    = cfg.missionName || (plan.op.label + " - " + cfg.anchor);
   var opSlug  = slugify(cfg.anchor + " " + plan.op.label);
@@ -3054,34 +3125,12 @@ function buildSQM(plan, cfg){
   close(0);
   w(0,"binarizationWanted=0;");
   w(0,'sourceName="'+opSlug+'";');
-  w(0,"addons[]=");
-  w(0,"{");
-  var addons = ['"A3_Ui_F"','"A3_Characters_F"'];
-  if (cfg.zeus) addons.push('"A3_Data_F_Curator_Virtual"','"A3_Modules_F_Curator_Curator"','"A3_Data_F_Exp_A_Virtual"');
-  for (var ai=0; ai<addons.length; ai++) w(1, addons[ai] + (ai<addons.length-1 ? "," : ""));
-  w(0,"};");
-  open(0,"class AddonsMetaData");
-    open(1,"class List");
-      var meta = [
-        {c:"A3_Ui_F", n:"Arma 3 - User Interface"},
-        {c:"A3_Characters_F", n:"Arma 3 Alpha - Characters and Clothing"}
-      ];
-      if (cfg.zeus) meta = meta.concat([
-        {c:"A3_Data_F_Curator", n:"Arma 3 Zeus Update - Main Configuration"},
-        {c:"A3_Modules_F_Curator", n:"Arma 3 Zeus Update - Scripted Modules"},
-        {c:"A3_Data_F_Exp_A", n:"Arma 3 Nexus Update - Main Configuration"}
-      ]);
-      w(2,"items="+meta.length+";");
-      for (var mi=0; mi<meta.length; mi++){
-        open(2,"class Item"+mi);
-          w(3,'className="'+meta[mi].c+'";');
-          w(3,'name="'+meta[mi].n+'";');
-          w(3,'author="Bohemia Interactive";');
-          w(3,'url="https://www.arma3.com";');
-        close(2);
-      }
-    close(1);
-  close(0);
+  /* addons[] and AddonsMetaData are a union over the classnames this mission actually
+   * emits, but the entities are written further down. Defer both with the same
+   * placeholder idiom the file already uses for __NEXTID__ and __ITEM__. */
+  w(0,"__ADDONS__");
+  w(0,"__ADDONSMETA__");
+
   w(0,"randomSeed="+(cfg.seed>>>0)+";");
   open(0,"class ScenarioData");
     w(1,'author="'+cfg.author.replace(/"/g,'""')+'";');
@@ -3118,7 +3167,7 @@ function buildSQM(plan, cfg){
         pos(d+1, plan.insertion.x, plan.insertion.y);
         w(d+1,'name="start";');
         w(d+1,'type="hd_start";');
-        w(d+1,'colorName="ColorBlue";');
+        w(d+1,'colorName="'+playerMark.color+'";');
         w(d+1,"id="+nid()+";");
       close(d);
     });
@@ -3131,7 +3180,7 @@ function buildSQM(plan, cfg){
         w(d+1,'name="op_area";');
         w(d+1,'markerType="ELLIPSE";');
         w(d+1,'type="Empty";');
-        w(d+1,'colorName="ColorOPFOR";');
+        w(d+1,'colorName="'+enemyMark.color+'";');
         w(d+1,'fillName="Border";');
         w(d+1,"a="+num(plan.op.core+cfg.patrolRadius*0.5)+";");
         w(d+1,"b="+num(plan.op.core+cfg.patrolRadius*0.5)+";");
@@ -3147,8 +3196,8 @@ function buildSQM(plan, cfg){
         pos(d+1, plan.center.x, plan.center.y);
         w(d+1,'name="op_marker";');
         w(d+1,'text="'+plan.op.label.replace(/"/g,'""')+'";');
-        w(d+1,'type="o_installation";');
-        w(d+1,'colorName="ColorOPFOR";');
+        w(d+1,'type="'+enemyMark.installation+'";');
+        w(d+1,'colorName="'+enemyMark.color+'";');
         w(d+1,"id="+nid()+";");
       close(d);
     });
@@ -3158,7 +3207,7 @@ function buildSQM(plan, cfg){
       var slots = PLAYER_SLOTS.slice(0, cfg.squad);
       open(d,"class __ITEM__");
         w(d+1,'dataType="Group";');
-        w(d+1,'side="West";');
+        w(d+1,'side="'+plan.pfac.side+'";');
         open(d+1,"class Entities");
           w(d+2,"items="+slots.length+";");
           for (var si=0; si<slots.length; si++){
@@ -3170,7 +3219,7 @@ function buildSQM(plan, cfg){
                 pos(d+4, plan.insertion.x + Math.sin(ang)*(si?4.5:0), plan.insertion.y + Math.cos(ang)*(si?4.5:0));
                 w(d+4,"angles[]={0,"+num(plan.bearingHome*Math.PI/180)+",0};");
               close(d+3);
-              w(d+3,'side="West";');
+              w(d+3,'side="'+plan.pfac.side+'";');
               w(d+3,"flags="+(si===0?7:5)+";");
               open(d+3,"class Attributes");
                 w(d+4,"skill=1;");
@@ -3180,7 +3229,7 @@ function buildSQM(plan, cfg){
                 w(d+4, si===0 ? "isPlayer=1;" : "isPlayable=1;");
               close(d+3);
               w(d+3,"id="+nid()+";");
-              w(d+3,'type="'+s.cls+'";');
+              w(d+3,'type="'+use(slotClass(plan.pfac, si))+'";');
             close(d+2);
           }
         close(d+1);
@@ -3224,7 +3273,7 @@ function buildSQM(plan, cfg){
                       }
                     close(d+5);
                     w(d+5,"id="+nid()+";");
-                    w(d+5,'type="'+u.cls+'";');
+                    w(d+5,'type="'+use(u.cls)+'";');
                   close(d+4);
                 }
                 for (var wi=0; wi<g.waypoints.length; wi++, slot++){
@@ -3426,14 +3475,105 @@ function buildSQM(plan, cfg){
     close(1);
   close(0);
 
-  var out = L.join("\r\n").replace("__NEXTID__", String(id)) + "\r\n";
+  /* ---- resolve the deferred addon blocks ----
+   * Now that every entity is written, `used` holds exactly the classnames this mission
+   * emits, so addons[] can be their exact requirement union rather than a fixed guess.
+   * This is what removes the "open in Eden once and re-save" step the tool used to need.
+   */
+  var emitted = Object.keys(used).sort();
+  var addons = addonsFor([plan.pfac, plan.fac], emitted);
+
+  /* A3_Ui_F is a mission-format requirement, not a unit's. Zeus and spectator entities
+   * are emitted by this generator rather than drawn from the dumps, so their addons are
+   * named here. */
+  var extra = ["A3_Ui_F"];
+  if (cfg.zeus) extra = extra.concat(["A3_Data_F_Curator_Virtual","A3_Modules_F_Curator_Curator","A3_Data_F_Exp_A_Virtual"]);
+  for (var ei=0; ei<extra.length; ei++) if (addons.indexOf(extra[ei]) < 0) addons.push(extra[ei]);
+  addons.sort();
+
+  /* Any classname whose requirements we could not resolve. Reported to the UI rather
+   * than dropped silently — an under-declared addons[] is what Eden cannot recover from. */
+  var unresolved = [];
+  for (var ui2=0; ui2<emitted.length; ui2++){
+    if (!plan.pfac.addonsOf[emitted[ui2]] && !plan.fac.addonsOf[emitted[ui2]]) unresolved.push(emitted[ui2]);
+  }
+  plan.addons = addons;
+  plan.unresolvedAddons = unresolved;
+  plan.mods = modsFor(addons);
+
+  var A = [];
+  A.push("addons[]=");
+  A.push("{");
+  for (var ai=0; ai<addons.length; ai++) A.push("\t\"" + addons[ai] + "\"" + (ai<addons.length-1 ? "," : ""));
+  A.push("};");
+
+  /* AddonsMetaData names the parent mod, not the addon entry — which is why Eden pairs
+   * A3_Data_F_Curator_Virtual (addons) with A3_Data_F_Curator (metadata). That parent
+   * relationship is not derivable from the dumps, so vanilla keeps its known pairs and
+   * everything else is described one entry per mod bundle, with its real author. */
+  var meta = [];
+  if (isVanillaOnly(addons)){
+    meta.push({c:"A3_Ui_F", n:"Arma 3 - User Interface", a:"Bohemia Interactive", u:"https://www.arma3.com"});
+    meta.push({c:"A3_Characters_F", n:"Arma 3 Alpha - Characters and Clothing", a:"Bohemia Interactive", u:"https://www.arma3.com"});
+    if (cfg.zeus){
+      meta.push({c:"A3_Data_F_Curator", n:"Arma 3 Zeus Update - Main Configuration", a:"Bohemia Interactive", u:"https://www.arma3.com"});
+      meta.push({c:"A3_Modules_F_Curator", n:"Arma 3 Zeus Update - Scripted Modules", a:"Bohemia Interactive", u:"https://www.arma3.com"});
+      meta.push({c:"A3_Data_F_Exp_A", n:"Arma 3 Nexus Update - Main Configuration", a:"Bohemia Interactive", u:"https://www.arma3.com"});
+    }
+  } else {
+    for (var mi2=0; mi2<plan.mods.length; mi2++){
+      var tag = MOD_TAGS[plan.mods[mi2]];
+      if (!tag) continue;
+      /* Name an addon this mission actually declares, never a plausible-looking one it
+       * does not — metadata that references an undeclared addon is worse than none. */
+      meta.push({c:firstAddonOfMod(addons, plan.mods[mi2]), n:tag.label, a:tag.author, u:tag.url});
+    }
+  }
+
+  var M = [];
+  M.push("class AddonsMetaData");
+  M.push("{");
+  M.push("\tclass List");
+  M.push("\t{");
+  M.push("\t\titems=" + meta.length + ";");
+  for (var mi3=0; mi3<meta.length; mi3++){
+    M.push("\t\tclass Item" + mi3);
+    M.push("\t\t{");
+    M.push("\t\t\tclassName=\"" + meta[mi3].c + "\";");
+    M.push("\t\t\tname=\"" + meta[mi3].n + "\";");
+    M.push("\t\t\tauthor=\"" + meta[mi3].a + "\";");
+    M.push("\t\t\turl=\"" + meta[mi3].u + "\";");
+    M.push("\t\t};");
+  }
+  M.push("\t};");
+  M.push("};");
+
+  var out = L.join("\r\n")
+    .replace("__NEXTID__", String(id))
+    .replace("__ADDONS__", A.join("\r\n"))
+    .replace("__ADDONSMETA__", M.join("\r\n")) + "\r\n";
   return out;
+}
+
+function isVanillaOnly(addons){
+  for (var i=0; i<addons.length; i++) if (modIdFor(addons[i]) !== "vanilla") return false;
+  return true;
+}
+
+function firstAddonOfMod(addons, modId){
+  for (var i=0; i<addons.length; i++) if (modIdFor(addons[i]) === modId) return addons[i];
+  return modId;
 }
 /* ===================== END CORE ===================== */
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { TOWNS:TOWNS, FACTIONS:FACTIONS, OPS:OPS, STRENGTH:STRENGTH,
-                     WEATHER:WEATHER, rollPlan:rollPlan, buildSQM:buildSQM, gridRef:gridRef };
+  module.exports = { WORLD_DATA:WORLD_DATA, FACTION_DATA:FACTION_DATA, ADDONS:ADDONS,
+                     MOD_TAGS:MOD_TAGS, FACTIONS:FACTIONS, OPS:OPS, STRENGTH:STRENGTH,
+                     WEATHER:WEATHER, PLAYER_SLOTS:PLAYER_SLOTS, ANCHOR_KIND:ANCHOR_KIND,
+                     rollPlan:rollPlan, buildSQM:buildSQM, gridRef:gridRef,
+                     worldByName:worldByName, anchorsFor:anchorsFor,
+                     addonsFor:addonsFor, modsFor:modsFor, modIdFor:modIdFor,
+                     slotClass:slotClass };
 }
 
 /* ===================== UI ===================== */
