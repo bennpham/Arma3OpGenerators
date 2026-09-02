@@ -257,6 +257,35 @@ group("addons[] covers every unit classname emitted", () => {
   }
 });
 
+group("worlds", () => {
+  ok(G.WORLD_DATA.length > 0, "at least one world shipped");
+
+  for (const w of G.WORLD_DATA) {
+    ok(w.s > 0, `${w.w}: has a positive map size`);
+    ok(w.l.length > 0, `${w.w}: has at least one anchor`);
+
+    /* A location outside the map size lands off-canvas with no error, so this is the
+     * assertion that catches a world whose reported mapSize under-reads its own data. */
+    for (const [name, type, x, y] of w.l) {
+      ok(x >= 0 && x <= w.s && y >= 0 && y <= w.s,
+        `${w.w}: anchor "${name}" at ${x},${y} is inside ${w.s}`);
+      ok(typeof name === "string" && name.trim().length > 0,
+        `${w.w}: every anchor has a name`);
+      ok("Ccvha".includes(type), `${w.w}: anchor "${name}" has a known type code`);
+    }
+
+    ok(G.anchorsFor(w, "settle").length > 0, `${w.w}: has a usable settlement anchor set`);
+    /* anchorsFor must never hand back an empty picker, whatever the kind. */
+    for (const kind of Object.keys(G.ANCHOR_KIND)) {
+      ok(G.anchorsFor(w, kind).length > 0, `${w.w}: anchorsFor("${kind}") is non-empty`);
+    }
+
+    for (const a of G.anchorsFor(w, "all")) {
+      eq(G.gridRef(a.x, a.y).length, 6, `${w.w}: gridRef("${a.n}") is 6 figures`);
+    }
+  }
+});
+
 group("gridRef", () => {
   for (const [x, y] of [[0, 0], [3458.95, 12966.4], [30719, 30719], [999, 999]]) {
     eq(G.gridRef(x, y).length, 6, `gridRef(${x},${y}) is 6 figures`);

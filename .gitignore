@@ -1,0 +1,4 @@
+# Playwright is an optional dev dependency for tools/browser-test.mjs only.
+# The tool itself ships as a single HTML file with no dependencies.
+node_modules/
+package-lock.json
