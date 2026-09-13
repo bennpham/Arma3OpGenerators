@@ -94,7 +94,7 @@ source (the extractor) instead.
 | `BorderCrossing` | 12 | Border crossing |
 
 `NameVillage` + `NameCity` + `NameCityCapital` is the "attackable settlement" set. For
-Altis that is exactly the 48 entries hardcoded as `TOWNS` in `altis-op-generator.html`,
+Altis that is exactly the 48 entries the generator used to hardcode as `TOWNS`,
 coordinates matching to the last digit.
 
 `Hill` and `Airport` are useful anchors this repo does not yet use — a hilltop OP or an
@@ -141,7 +141,15 @@ Nothing marks a class as squad leader, autorifleman, or medic. A role-keyed rost
 the generator's `FACTIONS` needs) must be **inferred** from `classname` / `displayName`
 patterns, and inference must be mod-aware — `O_Soldier_AR_F`, `CUP_O_RU_Soldier_AR`, and
 `vn_o_pavn_men_05` do not share a convention. Always provide a fallback role (the existing
-generator falls back to `rifle` at `altis-op-generator.html:511`) and expect gaps.
+generator falls back to `rifle`) and expect gaps.
+
+Inferring from `displayName` first, then `classname`, resolves all 13 roles for 18 of the 92
+non-civilian factions, ≥10 for 54, and ≥7 for 80. Two things make the difference:
+
+1. **Prefer candidates from the faction's dominant addon.** `BLU_F` infantry span
+   `A3_Characters_F` (64 units) but also `RF_Characters` (10) and `Characters_f_lxWS` (1),
+   so a naive first-match roster can make NATO require Western Sahara.
+2. **Anchor the AA rule.** A bare `\bAA\b` matches `Bodyguard (AA-12)`, which is a shotgun.
 
 Addon **display** names are also absent; `addons[]` gives classes only.
 
@@ -152,6 +160,19 @@ Addon **display** names are also absent; `addons[]` gives classes only.
 - [ ] `worldLocation.json` is **not valid JSON** — use the parser above or `worlds.json`.
 - [ ] `mapSize` is `0` for 7 of 61 worlds (4 CWR3, 3 CUP). **Never divide by it unguarded** — it
       drives coordinate scaling.
+- [ ] `mapSize` is also **wrong when non-zero** for 4 worlds — it can be smaller than the
+      world's own locations. `CUP_Chernarus_A3` reports 8192 with towns out to 13397;
+      `Mountains_ACR` reports 6400 with locations to 12288; also `juju_sahatra` and
+      `SPEX_Lingevres`. Widen with `max(mapSize, ceil(maxCoord/1024)*1024)` or pin by hand.
+- [ ] `addons` carries **compat noise**. 259 usable units list `ace_*`/`cba_*` entries
+      because ACE was loaded at extraction — vanilla `B_sniper_F` lists `ace_explosives`,
+      and the Zeus modules list `zen_*`/`EF_Curator`. These are patches applied *to* content,
+      not content requirements: strip them, or every mission hard-requires ACE3.
+- [ ] Classnames are **case-insensitive in game but not in this file**. `O_soldier_LAT_F`
+      (as written in mission.sqm) is `O_Soldier_LAT_F` here. Look up case insensitively.
+- [ ] `displayName` is **mojibake for 230 entries** — UTF-8 read as Latin-1 at extraction
+      (`Officer â€“ Paratrooper`). Classnames are ASCII and unaffected. Repair with a
+      `Buffer.from(s,"latin1").toString("utf8")` round-trip, guarded by a validity check.
 - [ ] Filter `side !== "UNKNOWN" && category !== "Other"` before showing units to a user.
 - [ ] `side` is config spelling (`WEST`/`GUER`); `mission.sqm` wants Eden's
       (`"West"`/`"Independent"`). Map explicitly.
@@ -159,7 +180,10 @@ Addon **display** names are also absent; `addons[]` gives classes only.
 - [ ] Filter on `category`, never `vehicleClass`.
 - [ ] Trust `locations.length` over `locationCount`.
 - [ ] `addons` can be empty (13 entries).
-- [ ] Location `name` is not unique within a world.
+- [ ] Location `name` is not unique within a world, **and can be empty**. 16 worlds have
+      duplicates within the settlement+hill+airport set (Abel: 27 of 43); 110 Hill and
+      Airport entries have `name: ""`. **Key locations by index, never by name** — a name
+      lookup silently resolves to the wrong place — and synthesize a label for the blanks.
 - [ ] Coverage = the modset loaded at extraction time. Absent ≠ nonexistent, and present
       ≠ available to the player. See `SOURCES.md`.
 
