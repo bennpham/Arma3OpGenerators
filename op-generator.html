@@ -232,7 +232,7 @@
         <label for="patrol">Patrol radius <span class="val" id="vPatrol">250 m</span></label>
         <input type="range" id="patrol" min="80" max="700" step="10" value="250">
       </div>
-      <label class="check"><input type="checkbox" id="waypoints" checked><span>Cyclic patrol waypoints<small>Roving groups get a MOVE ring closed with a Cycle waypoint.</small></span></label>
+      <label class="check"><input type="checkbox" id="waypoints" checked><span>FHQ task waypoints<small>Each group gets one MOVE waypoint that calls FHQ_fnc_taskPatrol (roving) or FHQ_fnc_taskDefend (static). Needs the FHQ function library.</small></span></label>
     </fieldset>
 
     <fieldset>
@@ -243,7 +243,7 @@
       </div>
       <div class="field">
         <label for="squad">Playable slots <span class="val" id="vSquad">4</span></label>
-        <input type="range" id="squad" min="2" max="8" step="1" value="4">
+        <input type="range" id="squad" min="2" max="16" step="1" value="4">
       </div>
     </fieldset>
 
@@ -281,7 +281,6 @@
       </div>
       <label class="check"><input type="checkbox" id="zeus" checked><span>Zeus + spectator slots<small>3 curators and 16 spectator slots, same layout as your template.</small></span></label>
       <label class="check"><input type="checkbox" id="fhq" checked><span>FHQ TaskTracker triggers<small>Per-objective completion and autosave triggers, plus victory and wipe conditions.</small></span></label>
-      <label class="check"><input type="checkbox" id="snap" checked><span>Ground-snap init line<small>Each group leader re-seats its units at ATL 0 on init, since terrain height isn't computed here.</small></span></label>
     </fieldset>
 
     <fieldset>
@@ -310,7 +309,7 @@
   </div>
   <textarea id="sqm" readonly spellcheck="false"></textarea>
   <div class="note">
-    Save as <code>mission.sqm</code> inside a folder named <code>&lt;something&gt;.<span id="worldSuffix">Altis</span></code> under your MPMissions or missions directory — the suffix binds the mission to the world and must match exactly. <code>addons[]</code> is derived from the units actually emitted, so Eden should not need to rewrite it. Elevation is written as 0 for every entity: infantry seats itself on the surface, and the ground-snap init covers the rest.
+    Save as <code>mission.sqm</code> inside a folder named <code>&lt;something&gt;.<span id="worldSuffix">Altis</span></code> under your MPMissions or missions directory — the suffix binds the mission to the world and must match exactly. <code>addons[]</code> is derived from the units actually emitted, so Eden should not need to rewrite it. Elevation is written as 0 for every entity, which is what infantry wants — it seats itself on the surface.
   </div>
 </div>
 
@@ -2986,11 +2985,23 @@ var PLAYER_SLOTS = [
   {role:"engineer", rank:"CORPORAL",   desc:"Demolitions"},
   {role:"sl",       rank:"CORPORAL",   desc:"JTAC"},
   {role:"rifle",    rank:"CORPORAL",   desc:"Rifleman"},
+  {role:"rifle",    rank:"PRIVATE",    desc:"Rifleman"},
+  /* Slots 9-16 are a second fireteam, so a full-strength element reads as two teams
+   * rather than a lead plus a tail of riflemen. Every role key here exists in the
+   * inferred roster, and a faction missing one falls back to its rifleman. */
+  {role:"tl",       rank:"SERGEANT",   desc:"Team Leader (Bravo)"},
+  {role:"ar",       rank:"CORPORAL",   desc:"Automatic Rifleman"},
+  {role:"lat",      rank:"CORPORAL",   desc:"Anti-Tank"},
+  {role:"medic",    rank:"CORPORAL",   desc:"Medic"},
+  {role:"gl",       rank:"CORPORAL",   desc:"Grenadier"},
+  {role:"engineer", rank:"PRIVATE",    desc:"Demolitions"},
+  {role:"rifle",    rank:"PRIVATE",    desc:"Rifleman"},
   {role:"rifle",    rank:"PRIVATE",    desc:"Rifleman"}
 ];
 
 function slotClass(fac, i){
-  return (fac.slots && fac.slots[i]) || fac.roster[PLAYER_SLOTS[i].role] || fac.roster.rifle;
+  var s = PLAYER_SLOTS[i] || PLAYER_SLOTS[PLAYER_SLOTS.length-1];
+  return (fac.slots && fac.slots[i]) || fac.roster[s.role] || fac.roster.rifle;
 }
 
 /* Eden marker type and colour per side. The generator previously hardcoded the OPFOR
@@ -3068,7 +3079,6 @@ function rollPlan(cfg){
     while (roles.length < target) roles.push(rnd.pick(["rifle","rifle","ar","gl","lat"]));
     while (roles.length > target) roles.pop();
 
-    var patrol = t.patrol && cfg.waypoints;
     var ga = baseAngle + gi * (Math.PI*2/tmpl.length) + rnd.range(-0.35,0.35);
     var ring = t.patrol ? rnd.range(cfg.patrolRadius*0.55, cfg.patrolRadius*0.85) : t.ring;
     var gx = cx + Math.sin(ga)*ring;
@@ -3092,19 +3102,27 @@ function rollPlan(cfg){
     }
     total += units.length;
 
+    /*
+     * One waypoint per group, sitting on the group itself, carrying an FHQ task call in
+     * its On Activation. The AI's actual movement is FHQ's to generate at runtime, so
+     * there is no ring to lay out here — and a waypoint statement fires once, on the
+     * server, which a unit init field does not: inits re-run for every JIP player.
+     */
     var wps = [];
-    if (patrol){
-      var legs = rnd.int(4,6);
-      var wa0  = rnd.range(0,Math.PI*2);
-      for (var wi=0; wi<legs; wi++){
-        var wa = wa0 + wi*(Math.PI*2/legs) + rnd.range(-0.25,0.25);
-        var wr = cfg.patrolRadius * rnd.range(0.6,1.0);
-        wps.push({ x: cx + Math.sin(wa)*wr, y: cy + Math.cos(wa)*wr });
+    if (cfg.waypoints){
+      if (t.patrol){
+        /* Rolled per group off the seeded RNG so two roving groups do not pace identical
+         * rings, but anchored to the patrol-radius slider so that control still means
+         * something. At the default 250 m this lands between 75 m and 150 m. */
+        var pr = Math.max(50, Math.round(cfg.patrolRadius * rnd.range(0.30,0.60) / 5) * 5);
+        wps.push({ x: gx, y: gy, task: "patrol", radius: pr });
+      } else {
+        wps.push({ x: gx, y: gy, task: "defend" });
       }
     }
 
     groups.push({
-      name: t.name, x: gx, y: gy, patrol: patrol,
+      name: t.name, x: gx, y: gy, patrol: t.patrol,
       units: units, waypoints: wps
     });
   }
@@ -3134,9 +3152,16 @@ function buildSQM(plan, cfg){
   var enemyMark  = SIDE_MARKER[plan.fac.side]  || SIDE_MARKER.East;
   var playerMark = SIDE_MARKER[plan.pfac.side] || SIDE_MARKER.West;
 
+  /* FHQ task presets. Neither statement contains a double quote, which is what keeps
+   * them safe to drop straight into an SQM string — keep it that way. */
+  function taskStatement(wp){
+    return wp.task === "patrol"
+      ? "[group this, " + wp.radius + "] call FHQ_fnc_taskPatrol;"
+      : "[group this, getPos this, 30, 50, 1] call FHQ_fnc_taskDefend;";
+  }
+
   var name    = cfg.missionName || (plan.op.label + " - " + cfg.anchor);
   var opSlug  = slugify(cfg.anchor + " " + plan.op.label);
-  var snapInit = "{_x setPosATL [(getPosATL _x) select 0,(getPosATL _x) select 1,0]} forEach units group this;";
 
   /* ---- header ---- */
   w(0,"version=54;");
@@ -3238,6 +3263,9 @@ function buildSQM(plan, cfg){
     /* player group */
     top.push(function(d){
       var slots = PLAYER_SLOTS.slice(0, cfg.squad);
+      /* 4.5 m holds a fireteam; a full 16 on the same circle would stand shoulder to
+       * shoulder, so the ring grows once past the first team. */
+      var srad = 4.5 + Math.max(0, slots.length - 8) * 0.6;
       open(d,"class __ITEM__");
         w(d+1,'dataType="Group";');
         w(d+1,'side="'+plan.pfac.side+'";');
@@ -3249,7 +3277,7 @@ function buildSQM(plan, cfg){
             open(d+2,"class Item"+si);
               w(d+3,'dataType="Object";');
               open(d+3,"class PositionInfo");
-                pos(d+4, plan.insertion.x + Math.sin(ang)*(si?4.5:0), plan.insertion.y + Math.cos(ang)*(si?4.5:0));
+                pos(d+4, plan.insertion.x + Math.sin(ang)*(si?srad:0), plan.insertion.y + Math.cos(ang)*(si?srad:0));
                 w(d+4,"angles[]={0,"+num(plan.bearingHome*Math.PI/180)+",0};");
               close(d+3);
               w(d+3,'side="'+plan.pfac.side+'";');
@@ -3300,10 +3328,7 @@ function buildSQM(plan, cfg){
                     open(d+5,"class Attributes");
                       w(d+6,"skill="+num(cfg.skill)+";");
                       w(d+6,'rank="'+u.rank+'";');
-                      if (ui===0){
-                        w(d+6,'name="'+slugify(g.name)+"_"+gi+'";');
-                        if (cfg.snap) w(d+6,'init="'+snapInit+'";');
-                      }
+                      if (ui===0) w(d+6,'name="'+slugify(g.name)+"_"+gi+'";');
                     close(d+5);
                     w(d+5,"id="+nid()+";");
                     w(d+5,'type="'+use(u.cls)+'";');
@@ -3311,14 +3336,14 @@ function buildSQM(plan, cfg){
                 }
                 for (var wi=0; wi<g.waypoints.length; wi++, slot++){
                   var p = g.waypoints[wi];
-                  var last = (wi === g.waypoints.length-1);
                   open(d+4,"class Item"+slot);
                     w(d+5,'dataType="Waypoint";');
                     pos(d+5, p.x, p.y);
                     w(d+5,"completitionRadius=25;");
-                    if (last) w(d+5,'type="Cycle";');
+                    w(d+5,'type="Move";');
                     open(d+5,"class Effects"); close(d+5);
                     w(d+5,'showWP="NEVER";');
+                    w(d+5,'expActiv="'+taskStatement(p)+'";');
                     w(d+5,"id="+nid()+";");
                   close(d+4);
                 }
@@ -3626,7 +3651,7 @@ var cfg = {
   opKey: "checkpoint", factionKey: "EAST|OPF_F", playerFactionKey: "WEST|BLU_F",
   strength: 1, skill: 0.55, patrolRadius: 250,
   insDist: 900, insBrg: 225, squad: 4, objectives: 3,
-  waypoints: true, zeus: true, fhq: true, snap: true,
+  waypoints: true, zeus: true, fhq: true,
   missionName: "", author: "Phantom Six", hour: 12, weather: "fair"
 };
 var plan = null, sqmText = "";
@@ -3908,7 +3933,6 @@ function readInputs(){
   cfg.waypoints   = $("waypoints").checked;
   cfg.zeus        = $("zeus").checked;
   cfg.fhq         = $("fhq").checked;
-  cfg.snap        = $("snap").checked;
   cfg.missionName = $("mname").value.trim();
   cfg.author      = $("author").value.trim() || "Unknown";
   cfg.hour        = parseInt($("hour").value,10);
@@ -4002,7 +4026,7 @@ function renderMods(){
 
 /* controls */
 ["op","faction","pfaction","strength","skill","patrol","insDist","insBrg","squad","objectives",
- "waypoints","zeus","fhq","snap","mname","author","hour","weather","seed"].forEach(function(k){
+ "waypoints","zeus","fhq","mname","author","hour","weather","seed"].forEach(function(k){
   $(k).addEventListener("input", regenerate);
   $(k).addEventListener("change", regenerate);
 });
