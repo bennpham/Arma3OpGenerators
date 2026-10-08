@@ -17,6 +17,14 @@ exact name to use.
 - **80 factions**, selectable independently for your squad and for the garrison.
 - **Anchors** can be settlements, named hills, or airfields — an observation post wants
   high ground, not a village square.
+- **2-16 playable slots**, filled from role keys so any faction can crew them; past 8 the
+  team splits into a second fireteam.
+- **Garrison groups are tasked through waypoints, not init fields.** Each enemy group gets
+  one MOVE waypoint whose On Activation calls `FHQ_fnc_taskPatrol` (roving groups) or
+  `FHQ_fnc_taskDefend` (static ones), so the AI behaviour comes from
+  [FHQ TaskTracker](https://github.com/bennpham/Arma3PhantomMissionLoader2) at runtime. No
+  entity carries an `init` field: those re-run for every JIP player, waypoint statements
+  do not.
 - **`addons[]` is derived** from the units actually emitted, so a mission states exactly
   which content it needs. The UI lists the required mods and their authors before you
   download, and Eden should not need to rewrite anything on first save.

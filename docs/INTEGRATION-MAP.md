@@ -45,7 +45,7 @@ re-extraction produces a readable diff rather than one enormous line.
 | `fac.roster[role] \|\| fac.roster.rifle` | **unchanged** — only roster construction moved |
 | `side="West"` hardcoded on the player | the chosen player faction's Eden side |
 | `type="o_installation"`, `ColorOPFOR` | follow the side each marker represents |
-| `PLAYER_SLOTS`, 8 NATO classnames | 8 role keys; NATO's recon team kept as a slot override |
+| `PLAYER_SLOTS`, 8 NATO classnames | 16 role keys; NATO's recon team kept as an override over the first 8 |
 | `addons[]`, 2 fixed entries | the exact union over emitted classnames |
 | `AddonsMetaData`, always Bohemia | the real author and url per mod bundle |
 

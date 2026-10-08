@@ -113,8 +113,51 @@ function checkStructure(sqm, label) {
   ok(next && +next[1] === ids[ids.length - 1] + 1,
     `${label}: ItemIDProvider.nextID = max(id)+1`);
 
+  /*
+   * No entity may carry an init field: they re-run for every JIP player. Anything that
+   * needs to fire once belongs in a waypoint's On Activation, which does not.
+   */
+  ok(!/\binit=/.test(sqm), `${label}: no init fields emitted`);
+
+  checkWaypoints(sqm, label);
   checkItemCounts(sqm, label);
 }
+
+/*
+ * Every waypoint is a MOVE carrying exactly one FHQ task call, and each group has exactly
+ * one of them. The old Cycle-closed patrol ring must be gone.
+ */
+const FHQ_TASK =
+  /^\[group this, (\d+\] call FHQ_fnc_taskPatrol|getPos this, 30, 50, 1\] call FHQ_fnc_taskDefend);$/;
+
+function checkWaypoints(sqm, label) {
+  /* Line-scanned rather than block-matched: the emitter writes CRLF, which makes a
+   * `[\s\S]*?` block regex quietly match nothing. */
+  const lines = sqm.split(/\r?\n/);
+  let wps = 0, groups = 0, bad = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\t*dataType="Group";$/.test(lines[i])) groups++;
+    if (!/^\t*dataType="Waypoint";$/.test(lines[i])) continue;
+    wps++;
+    const body = [];
+    for (let j = i + 1; j < lines.length && !/^\t*dataType=/.test(lines[j]); j++) {
+      body.push(lines[j].trim());
+      if (lines[j] === lines[i].replace(/dataType.*/, "").slice(0, -1) + "};") break;
+    }
+    const joined = body.join("\n");
+    if (!/^type="Move";$/m.test(joined)) bad.push("not a MOVE");
+    const exp = joined.match(/^expActiv="([^"]*)";$/m);
+    if (!exp) bad.push("no expActiv");
+    else if (!FHQ_TASK.test(exp[1])) bad.push(`bad expActiv: ${exp[1]}`);
+  }
+
+  ok(wps > 0, `${label}: emits at least one waypoint`);
+  ok(!/type="Cycle"/.test(sqm), `${label}: no Cycle waypoints remain`);
+  eq(bad.length, 0, `${label}: every waypoint is a MOVE with an FHQ task preset${bad.length ? ` — ${bad[0]}` : ""}`);
+  eq(wps, groups - 1, `${label}: one waypoint per enemy group, none for the players`);
+}
+
 
 /* ---- the runs ---- */
 
@@ -125,7 +168,7 @@ const DEFAULT_CFG = {
   opKey: "checkpoint", factionKey: "EAST|OPF_F", playerFactionKey: "WEST|BLU_F",
   strength: 1, skill: 0.55, patrolRadius: 250,
   insDist: 900, insBrg: 225, squad: 4, objectives: 3,
-  waypoints: true, zeus: true, fhq: true, snap: true,
+  waypoints: true, zeus: true, fhq: true,
   missionName: "", author: "Phantom Six", hour: 12, weather: "fair",
 };
 
@@ -139,11 +182,14 @@ const sha = (s) => createHash("sha256").update(s).digest("hex");
 
 /*
  * Captured from the pre-multi-map generator at commit 0893b19, default config, then
- * updated once for a single reviewed change: the insertion marker's colorName moved from
- * the hardcoded "ColorBlue" to "ColorBLUFOR", the player side's actual marker colour.
- * Everything else about the default Altis / NATO-vs-CSAT mission is byte-identical.
+ * updated twice, each time for a single reviewed change:
+ *   1. the insertion marker's colorName moved from the hardcoded "ColorBlue" to
+ *      "ColorBLUFOR", the player side's actual marker colour;
+ *   2. the leader init fields were dropped and the Cycle-closed patrol rings collapsed
+ *      into one FHQ-tasked MOVE waypoint per group, which also moved the item counts
+ *      and nextID. The diff was confirmed to contain nothing else.
  */
-const GOLDEN_STRIPPED = "81e30525b1c95e9aed64255baf1eb38d220771a5dcac9c03345bca89c735f2fa";
+const GOLDEN_STRIPPED = "cfe76d051e1151cd9daa1da2fe929ef0995f9e50e040ccb7a0177f7caebd75a7";
 
 group("golden regression (default config)", () => {
   const sqm = G.buildSQM(G.rollPlan(DEFAULT_CFG), DEFAULT_CFG);
@@ -220,7 +266,7 @@ group("addons[] covers every unit classname emitted", () => {
   for (const [factionKey, playerFactionKey] of combos) {
     if (!G.FACTIONS[factionKey] || !G.FACTIONS[playerFactionKey]) continue;
     for (const opKey of Object.keys(G.OPS)) {
-      const cfg = { ...DEFAULT_CFG, factionKey, playerFactionKey, opKey, squad: 8 };
+      const cfg = { ...DEFAULT_CFG, factionKey, playerFactionKey, opKey, squad: 16 };
       const plan = G.rollPlan(cfg);
       const sqm = G.buildSQM(plan, cfg);
 
