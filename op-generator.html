@@ -3197,7 +3197,6 @@ function buildSQM(plan, cfg){
   open(0,"class Mission");
     var wx = WEATHER[cfg.weather];
     open(1,"class Intel");
-      w(2,"briefingName=\""+name.replace(/"/g,'""')+"\";");
       w(2,"timeOfChanges=1800.0002;");
       w(2,"startWeather="+num(wx.o)+";");
       w(2,"startWind="+num(wx.w)+";");
@@ -3286,7 +3285,6 @@ function buildSQM(plan, cfg){
                 w(d+4,"skill=1;");
                 w(d+4,'rank="'+s.rank+'";');
                 w(d+4,'name="p'+(si+1)+'";');
-                w(d+4,'description="'+s.desc+'";');
                 w(d+4, si===0 ? "isPlayer=1;" : "isPlayable=1;");
               close(d+3);
               w(d+3,"id="+nid()+";");
