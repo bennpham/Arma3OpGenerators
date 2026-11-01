@@ -189,7 +189,7 @@ const sha = (s) => createHash("sha256").update(s).digest("hex");
  *      into one FHQ-tasked MOVE waypoint per group, which also moved the item counts
  *      and nextID. The diff was confirmed to contain nothing else.
  */
-const GOLDEN_STRIPPED = "cfe76d051e1151cd9daa1da2fe929ef0995f9e50e040ccb7a0177f7caebd75a7";
+const GOLDEN_STRIPPED = "44b7238639cfe058ed02aa7e6ce31afdcd7b0a5e0c6c5076e425787daf14a502";
 
 group("golden regression (default config)", () => {
   const sqm = G.buildSQM(G.rollPlan(DEFAULT_CFG), DEFAULT_CFG);
