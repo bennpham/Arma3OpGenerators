@@ -119,8 +119,37 @@ function checkStructure(sqm, label) {
    */
   ok(!/\binit=/.test(sqm), `${label}: no init fields emitted`);
 
-  checkWaypoints(sqm, label);
+  /* The garrison's waypoint contract does not apply to the reinforcement layer, which
+   * carries its own hold / move / seek-and-destroy / cycle chain — checked separately. */
+  checkWaypoints(withoutLayer(sqm, / - Reinforcements$/), label);
   checkItemCounts(sqm, label);
+}
+
+/** Line range of the Layer block whose name matches `re`, or null. */
+function findLayer(sqm, re) {
+  const lines = sqm.split("\r\n");
+  for (let i = 1; i < lines.length; i++) {
+    const m = lines[i].match(/^\t*name="(.*)";$/);
+    if (!m || !re.test(m[1]) || !/dataType="Layer";$/.test(lines[i - 1])) continue;
+    const head = i - 3;                               // class ItemN, {, dataType, name
+    const indent = lines[head].match(/^\t*/)[0];
+    for (let j = head + 1; j < lines.length; j++) {
+      if (lines[j] === indent + "};") return { lines, start: head, end: j };
+    }
+  }
+  return null;
+}
+
+function withoutLayer(sqm, re) {
+  const f = findLayer(sqm, re);
+  if (!f) return sqm;
+  return [...f.lines.slice(0, f.start), ...f.lines.slice(f.end + 1)].join("\r\n");
+}
+
+/** The layer's body, without its `class ItemN` line, which shifts with sibling order. */
+function layerText(sqm, re) {
+  const f = findLayer(sqm, re);
+  return f ? f.lines.slice(f.start + 1, f.end + 1).join("\r\n") : null;
 }
 
 /*
@@ -335,6 +364,63 @@ group("worlds", () => {
 group("gridRef", () => {
   for (const [x, y] of [[0, 0], [3458.95, 12966.4], [30719, 30719], [999, 999]]) {
     eq(G.gridRef(x, y).length, 6, `gridRef(${x},${y}) is 6 figures`);
+  }
+});
+
+group("reinforcements", () => {
+  const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const cases = [
+    { factionKey: "EAST|OPF_F",  side: "EAST", reinfGroups: 1, reinfDelay: 0 },
+    { factionKey: "EAST|OPF_F",  side: "EAST", reinfGroups: 2, reinfDelay: 120 },
+    { factionKey: "GUER|IND_F",  side: "GUER", reinfGroups: 3, reinfDelay: 300, strength: 3 },
+    { factionKey: "WEST|BLU_F",  side: "WEST", reinfGroups: 4, reinfDelay: 1800, strength: 0,
+      playerFactionKey: "EAST|OPF_F" },
+    { factionKey: "EAST|O_PAVN", side: "EAST", reinfGroups: 4, reinfDelay: 90, opKey: "patrol_base" },
+  ];
+
+  for (const { side, ...c } of cases) {
+    if (!G.FACTIONS[c.factionKey]) { ok(false, `missing faction ${c.factionKey}`); continue; }
+    const off = { ...DEFAULT_CFG, ...c, reinforce: false };
+    const on  = { ...off, reinforce: true, reinfDist: 800 };
+    const label = `reinforce ${c.factionKey} x${c.reinfGroups}`;
+    const plan = G.rollPlan(on);
+    const sqm = G.buildSQM(plan, on);
+    const sqmOff = G.buildSQM(G.rollPlan(off), off);
+    const count = (re) => (sqm.match(re) || []).length;
+
+    checkStructure(sqm, label);
+    ok(findLayer(sqm, / - Reinforcements$/) !== null, `${label}: emits a Reinforcements layer`);
+    ok(findLayer(sqmOff, / - Reinforcements$/) === null, `${label}: off emits no Reinforcements layer`);
+
+    eq(count(/condition="\[FHQ_playableUnits, thisList\] call FHQ_fnc_detectedBy";/g), 1,
+      `${label}: one detection trigger`);
+    eq(count(new RegExp(`activationBy="${side}";`, "g")), 1, `${label}: detection activates by ${side}`);
+    eq(count(/onActivation="detected = true; publicVariable ""detected"";";/g), 1,
+      `${label}: detection raises detected`);
+    eq(count(/condition="detected";/g), 1, `${label}: one delay trigger`);
+    eq(count(/onActivation="detected_go = true; publicVariable ""detected_go"";";/g), 1,
+      `${label}: delay trigger raises detected_go`);
+    const d = c.reinfDelay;
+    eq(count(new RegExp(`timeout\\[\\]=\\{${d},${d},${d}\\};`, "g")), 1,
+      `${label}: delay trigger waits ${d} s`);
+
+    eq(plan.reinf.groups.length, c.reinfGroups, `${label}: plan holds ${c.reinfGroups} groups`);
+    eq(count(/expCond="detected_go";/g), c.reinfGroups, `${label}: one held waypoint per group`);
+    eq(count(/type="SeekAndDestroy";/g), c.reinfGroups, `${label}: one seek-and-destroy per group`);
+    eq(count(/type="Cycle";/g), c.reinfGroups, `${label}: one cycle per group`);
+    eq(count(/behaviour="SAFE";/g), c.reinfGroups, `${label}: groups start SAFE`);
+
+    /* Rolled after the garrison off the same RNG, so ticking the box must not move a
+     * single garrison unit. */
+    const gRe = new RegExp(`^${escapeRe(plan.fac.tag)} - ${escapeRe(plan.op.label)}$`);
+    const gOn = layerText(sqm, gRe), gOff = layerText(sqmOff, gRe);
+    ok(gOn !== null && gOn === gOff, `${label}: garrison layer identical with reinforcements on`);
+
+    const declared = new Set([...sqm.matchAll(/^\t"([A-Za-z0-9_]+)",?$/gm)].map((m) => m[1]));
+    const classes = [...new Set(plan.reinf.groups.flatMap((g) => g.units.map((u) => u.cls)))];
+    for (const a of G.addonsFor([plan.pfac, plan.fac], classes)) {
+      ok(declared.has(a), `${label}: addons[] declares ${a}`);
+    }
   }
 });
 

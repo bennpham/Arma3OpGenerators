@@ -53,6 +53,11 @@ re-extraction produces a readable diff rather than one enormous line.
 untouched. `OPS` templates reference **role keys**, not classnames, which is why swapping
 factions works at all — keep that indirection.
 
+The optional reinforcement layer is authored the same way: `REINF_ROLES` is a role-key
+squad filled from the garrison faction's roster. Its triggers call `FHQ_fnc_detectedBy` and
+read `FHQ_playableUnits`, neither of which is in the dumps or in `mission.sqm` — they come
+from the FHQ mission template the file is dropped into, as the garrison's FHQ task calls do.
+
 ## Gotchas that bit, and must not be reintroduced
 
 These are properties of the data, not of the code. Each one shipped as a bug or nearly did.

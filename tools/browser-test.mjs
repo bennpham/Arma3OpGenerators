@@ -101,6 +101,23 @@ ok(first.sqm > 1000, "generates a mission on load");
 ok(first.addons.length > 0 && first.addons.every((a) => !/^(ace_|cba_|zen_)/i.test(a)),
   "a vanilla mission declares no compat addons");
 
+/* ---- reinforcements: off by default, sub-controls appear only when ticked ---- */
+const reinf = () => page.evaluate(() => ({
+  hidden: document.querySelector("#reinfOpts").hidden,
+  go: (document.querySelector("#sqm").value.match(/expCond="detected_go";/g) || []).length,
+}));
+const r0 = await reinf();
+ok(r0.hidden && r0.go === 0, "reinforcements are off and their controls hidden on load");
+await page.check("#reinforce");
+await page.waitForTimeout(120);
+const r1 = await reinf();
+ok(!r1.hidden, "ticking reinforcements reveals their controls");
+ok(r1.go === 2, `default reinforcement emits 2 held groups (got ${r1.go})`);
+await page.uncheck("#reinforce");
+await page.waitForTimeout(120);
+const r2 = await reinf();
+ok(r2.hidden && r2.go === 0, "unticking reinforcements removes them again");
+
 /* ---- a modded world and modded factions on both sides ---- */
 await selectWorld("Khe Sanh");
 await page.selectOption("#faction", "EAST|O_PAVN");

@@ -236,6 +236,25 @@
     </fieldset>
 
     <fieldset>
+      <legend>Reinforcements</legend>
+      <label class="check"><input type="checkbox" id="reinforce"><span>Enable reinforcements<small>A detection trigger over the garrison sets <code>detected</code> once it spots the players (FHQ_fnc_detectedBy). After the delay, <code>detected_go</code> releases infantry holding outside the area to seek and destroy at the objective. Needs the FHQ function library and FHQ_playableUnits.</small></span></label>
+      <div id="reinfOpts" hidden>
+        <div class="field">
+          <label for="reinfGroups">Groups <span class="val" id="vReinfGroups">2</span></label>
+          <input type="range" id="reinfGroups" min="1" max="4" step="1" value="2">
+        </div>
+        <div class="field">
+          <label for="reinfDelay">Delay after detection <span class="val" id="vReinfDelay">2 min</span></label>
+          <input type="range" id="reinfDelay" min="0" max="1800" step="30" value="120">
+        </div>
+        <div class="field">
+          <label for="reinfDist">Distance from objective <span class="val" id="vReinfDist">800 m</span></label>
+          <input type="range" id="reinfDist" min="300" max="2000" step="50" value="800">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Your force</legend>
       <div class="field">
         <label for="pfaction">Player faction <span class="val" id="vPFaction">—</span></label>
@@ -2957,6 +2976,10 @@ var OPS = {
   }
 };
 
+/* One infantry squad per reinforcement group, scaled by the same strength multiplier as
+ * the garrison. Deliberately plain: anything heavier is the mission maker's call. */
+var REINF_ROLES = ["sl","rifle","ar","gl","lat","rifle"];
+
 var STRENGTH = [
   {label:"Light",     mul:0.75, groups:0.8},
   {label:"Standard",  mul:1.0,  groups:1.0},
@@ -3012,6 +3035,9 @@ var SIDE_MARKER = {
   Independent: { installation:"n_installation", color:"ColorIndependent" },
   Civilian:    { installation:"c_unknown",      color:"ColorCivilian" }
 };
+
+/* A trigger's activationBy speaks the config side names, not the Eden group side. */
+var SIDE_TRIGGER = { West:"WEST", East:"EAST", Independent:"GUER", Civilian:"CIV" };
 
 /* --- deterministic RNG --- */
 function mulberry32(a){
@@ -3127,12 +3153,72 @@ function rollPlan(cfg){
     });
   }
 
+  /*
+   * Reinforcements. Every roll here comes after the garrison's, off the same RNG, so
+   * ticking the box adds entities without moving a single garrison unit.
+   *
+   * The groups hold outside the area until `detected_go` and then sweep in. Their bearing
+   * is rolled at least 90 degrees off the insertion leg so they do not stage on top of the
+   * players' start; it is a scaffold, and the mission maker drags them in Eden afterwards.
+   */
+  var reinf = null;
+  if (cfg.reinforce){
+    var rBrg = (cfg.insBrg + rnd.range(90, 270)) % 360;
+    var rRad = rBrg * Math.PI/180;
+    var ox = cx + Math.sin(rRad)*cfg.reinfDist, oy = cy + Math.cos(rRad)*cfg.reinfDist;
+    var px = Math.cos(rRad), py = -Math.sin(rRad);         // perpendicular to the bearing
+    var face = Math.atan2(cx-ox, cy-oy);                    // toward the objective
+    var rGroups = [], rTotal = 0, n = cfg.reinfGroups;
+
+    for (var ri=0; ri<n; ri++){
+      var off = (ri - (n-1)/2) * 25;
+      var rx = ox + px*off, ry = oy + py*off;
+      var rRoles = REINF_ROLES.slice();
+      var rTarget = Math.max(2, Math.round(rRoles.length * str.mul));
+      while (rRoles.length < rTarget) rRoles.push(rnd.pick(["rifle","rifle","ar","gl","lat"]));
+      while (rRoles.length > rTarget) rRoles.pop();
+
+      var rUnits = [];
+      for (var rui=0; rui<rRoles.length; rui++){
+        var ra = rnd.range(0, Math.PI*2);
+        var rd = rui === 0 ? 0 : rnd.range(3, 4 + rRoles.length*1.5);
+        rUnits.push({
+          cls: fac.roster[rRoles[rui]] || fac.roster.rifle,
+          role: rRoles[rui],
+          x: rx + Math.sin(ra)*rd,
+          y: ry + Math.cos(ra)*rd,
+          dir: face + rnd.range(-0.4,0.4),
+          rank: rui===0 ? "SERGEANT" : (rui===1 ? "CORPORAL" : "PRIVATE")
+        });
+      }
+      rTotal += rUnits.length;
+
+      rGroups.push({
+        name: "Reinforcement " + (ri+1), x: rx, y: ry, units: rUnits,
+        waypoints: [
+          { kind:"hold",  x: rx, y: ry },
+          { kind:"move",  x: (rx+cx)/2, y: (ry+cy)/2 },
+          { kind:"sad",   x: cx, y: cy },
+          { kind:"cycle", x: cx + 5, y: cy + 5 }
+        ]
+      });
+    }
+
+    reinf = {
+      bearing: rBrg, dist: cfg.reinfDist, delay: cfg.reinfDelay,
+      x: ox, y: oy, groups: rGroups, total: rTotal,
+      /* Roving groups sit out to 0.85x the patrol radius and pace up to 0.6x around
+       * that, so 1.5x plus the core covers everyone who might spot the players. */
+      radius: Math.round(op.core + cfg.patrolRadius*1.5)
+    };
+  }
+
   var tasks = op.tasks.slice(0, cfg.objectives);
 
   return {
     op: op, fac: fac, pfac: pfac, str: str,
     center: {x:cx, y:cy}, insertion: ins,
-    groups: groups, total: total, tasks: tasks,
+    groups: groups, total: total, tasks: tasks, reinf: reinf,
     bearingHome: (cfg.insBrg + 180) % 360
   };
 }
@@ -3158,6 +3244,27 @@ function buildSQM(plan, cfg){
     return wp.task === "patrol"
       ? "[group this, " + wp.radius + "] call FHQ_fnc_taskPatrol;"
       : "[group this, getPos this, 30, 50, 1] call FHQ_fnc_taskDefend;";
+  }
+
+  /* One garrison-side unit. Shared by the garrison and the reinforcements; `name` is
+   * given for the group leader only, which is also what flags=7 marks. */
+  function emitUnit(d, slot, u, name){
+    open(d,"class Item"+slot);
+      w(d+1,'dataType="Object";');
+      open(d+1,"class PositionInfo");
+        pos(d+2, u.x, u.y);
+        w(d+2,"angles[]={0,"+num((u.dir+Math.PI*2)%(Math.PI*2))+",0};");
+      close(d+1);
+      w(d+1,'side="'+plan.fac.side+'";');
+      w(d+1,"flags="+(slot===0?7:5)+";");
+      open(d+1,"class Attributes");
+        w(d+2,"skill="+num(cfg.skill)+";");
+        w(d+2,'rank="'+u.rank+'";');
+        if (name) w(d+2,'name="'+name+'";');
+      close(d+1);
+      w(d+1,"id="+nid()+";");
+      w(d+1,'type="'+use(u.cls)+'";');
+    close(d);
   }
 
   var name    = cfg.missionName || (plan.op.label + " - " + cfg.anchor);
@@ -3314,23 +3421,7 @@ function buildSQM(plan, cfg){
                 w(d+4,"items="+count+";");
                 var slot = 0;
                 for (var ui=0; ui<g.units.length; ui++, slot++){
-                  var u = g.units[ui];
-                  open(d+4,"class Item"+slot);
-                    w(d+5,'dataType="Object";');
-                    open(d+5,"class PositionInfo");
-                      pos(d+6, u.x, u.y);
-                      w(d+6,"angles[]={0,"+num((u.dir+Math.PI*2)%(Math.PI*2))+",0};");
-                    close(d+5);
-                    w(d+5,'side="'+plan.fac.side+'";');
-                    w(d+5,"flags="+(ui===0?7:5)+";");
-                    open(d+5,"class Attributes");
-                      w(d+6,"skill="+num(cfg.skill)+";");
-                      w(d+6,'rank="'+u.rank+'";');
-                      if (ui===0) w(d+6,'name="'+slugify(g.name)+"_"+gi+'";');
-                    close(d+5);
-                    w(d+5,"id="+nid()+";");
-                    w(d+5,'type="'+use(u.cls)+'";');
-                  close(d+4);
+                  emitUnit(d+4, slot, g.units[ui], ui===0 ? slugify(g.name)+"_"+gi : null);
                 }
                 for (var wi=0; wi<g.waypoints.length; wi++, slot++){
                   var p = g.waypoints[wi];
@@ -3353,6 +3444,98 @@ function buildSQM(plan, cfg){
         close(d+1);
       close(d);
     });
+
+    /*
+     * Reinforcements, after Phantom's own detection pattern: an area trigger over the
+     * garrison raises `detected` once any of them knows about a player; a second trigger
+     * waits out the delay and raises `detected_go`; each group sits on a hold waypoint
+     * gated on `detected_go`, then moves in and seeks and destroys at the objective.
+     * Neither trigger statement contains a bare double quote beyond the SQM-doubled ones.
+     */
+    if (plan.reinf){
+      top.push(function(d){
+        var R = plan.reinf;
+        open(d,"class __ITEM__");
+          w(d+1,'dataType="Layer";');
+          w(d+1,'name="'+plan.fac.tag+' - Reinforcements";');
+          open(d+1,"class Entities");
+            w(d+2,"items="+(2 + R.groups.length)+";");
+
+            /* detection */
+            open(d+2,"class Item0");
+              w(d+3,'dataType="Trigger";');
+              pos(d+3, plan.center.x, plan.center.y);
+              open(d+3,"class Attributes");
+                w(d+4,'text="Detection";');
+                w(d+4,'condition="[FHQ_playableUnits, thisList] call FHQ_fnc_detectedBy";');
+                w(d+4,'onActivation="detected = true; publicVariable ""detected"";";');
+                w(d+4,"sizeA="+R.radius+";");
+                w(d+4,"sizeB="+R.radius+";");
+                w(d+4,"timeout[]={30,35,40};");
+                w(d+4,"interuptable=1;");
+                w(d+4,"repeatable=1;");
+                w(d+4,'activationBy="'+(SIDE_TRIGGER[plan.fac.side] || "EAST")+'";');
+              close(d+3);
+              w(d+3,"id="+nid()+";");
+              w(d+3,'type="EmptyDetectorAreaR250";');
+            close(d+2);
+
+            /* release after the delay */
+            open(d+2,"class Item1");
+              w(d+3,'dataType="Trigger";');
+              pos(d+3, R.x, R.y - 30);
+              open(d+3,"class Attributes");
+                w(d+4,'text="Reinforcements go";');
+                w(d+4,'condition="detected";');
+                w(d+4,'onActivation="detected_go = true; publicVariable ""detected_go"";";');
+                w(d+4,"sizeA=0;");
+                w(d+4,"sizeB=0;");
+                w(d+4,"timeout[]={"+R.delay+","+R.delay+","+R.delay+"};");
+              close(d+3);
+              w(d+3,"id="+nid()+";");
+              w(d+3,'type="EmptyDetector";');
+            close(d+2);
+
+            for (var ri=0; ri<R.groups.length; ri++){
+              var g = R.groups[ri];
+              open(d+2,"class Item"+(2+ri));
+                w(d+3,'dataType="Group";');
+                w(d+3,'side="'+plan.fac.side+'";');
+                open(d+3,"class Entities");
+                  w(d+4,"items="+(g.units.length + g.waypoints.length)+";");
+                  var slot = 0;
+                  for (var ui=0; ui<g.units.length; ui++, slot++){
+                    emitUnit(d+4, slot, g.units[ui], ui===0 ? "reinf_"+(ri+1) : null);
+                  }
+                  for (var wi=0; wi<g.waypoints.length; wi++, slot++){
+                    var p = g.waypoints[wi];
+                    open(d+4,"class Item"+slot);
+                      w(d+5,'dataType="Waypoint";');
+                      pos(d+5, p.x, p.y);
+                      if (p.kind === "hold") w(d+5,'expCond="detected_go";');
+                      if (p.kind === "sad")  w(d+5,"placement=90;");
+                      if (p.kind === "move"){
+                        w(d+5,'formation="WEDGE";');
+                        w(d+5,'speed="NORMAL";');
+                        w(d+5,'combat="AWARE";');
+                      }
+                      open(d+5,"class Effects"); close(d+5);
+                      w(d+5,'showWP="NEVER";');
+                      w(d+5,"id="+nid()+";");
+                      w(d+5,'type="'+(p.kind === "sad" ? "SeekAndDestroy" : p.kind === "cycle" ? "Cycle" : "Move")+'";');
+                    close(d+4);
+                  }
+                close(d+3);
+                open(d+3,"class Attributes");
+                  w(d+4,'behaviour="SAFE";');
+                close(d+3);
+                w(d+3,"id="+nid()+";");
+              close(d+2);
+            }
+          close(d+1);
+        close(d);
+      });
+    }
 
     /* zeus + spectators */
     if (cfg.zeus){
@@ -3629,7 +3812,7 @@ if (typeof module !== "undefined" && module.exports){
                      rollPlan:rollPlan, buildSQM:buildSQM, gridRef:gridRef,
                      worldByName:worldByName, anchorsFor:anchorsFor,
                      addonsFor:addonsFor, modsFor:modsFor, modIdFor:modIdFor,
-                     slotClass:slotClass };
+                     slotClass:slotClass, REINF_ROLES:REINF_ROLES, SIDE_TRIGGER:SIDE_TRIGGER };
 }
 
 /* ===================== UI ===================== */
@@ -3650,6 +3833,7 @@ var cfg = {
   strength: 1, skill: 0.55, patrolRadius: 250,
   insDist: 900, insBrg: 225, squad: 4, objectives: 3,
   waypoints: true, zeus: true, fhq: true,
+  reinforce: false, reinfGroups: 2, reinfDelay: 120, reinfDist: 800,
   missionName: "", author: "Phantom Six", hour: 12, weather: "fair"
 };
 var plan = null, sqmText = "";
@@ -3786,6 +3970,11 @@ function setWorld(next, kind){
     cfg.insDist = Math.max(200, Math.round(WORLD/4/50)*50);
     $("insDist").value = cfg.insDist;
   }
+  /* Nor does an 800 m reinforcement stand-off; keep it on the map. */
+  if (cfg.reinfDist > WORLD/4){
+    cfg.reinfDist = Math.max(300, Math.round(WORLD/4/50)*50);
+    $("reinfDist").value = cfg.reinfDist;
+  }
   fillAnchors(0);
   $("worldTitle").textContent = world.d;
   $("plateWorld").textContent = world.d;
@@ -3877,6 +4066,24 @@ function drawMap(){
     ctx.closePath(); ctx.fill();
   });
 
+  // reinforcements — detection area, approach, and hollow markers for groups held back
+  if (plan.reinf){
+    ctx.strokeStyle = "rgba(191,59,44,.28)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(c.px,c.py, plan.reinf.radius*scale, 0, 7); ctx.stroke();
+    var ro = toPx(plan.reinf.x, plan.reinf.y);
+    ctx.strokeStyle = "rgba(191,59,44,.7)";
+    ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.moveTo(ro.px,ro.py); ctx.lineTo(c.px,c.py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "#bf3b2c"; ctx.lineWidth = 1.5;
+    plan.reinf.groups.forEach(function(gr){
+      var p = toPx(gr.x, gr.y);
+      ctx.beginPath();
+      ctx.moveTo(p.px, p.py-4); ctx.lineTo(p.px+4, p.py); ctx.lineTo(p.px, p.py+4); ctx.lineTo(p.px-4, p.py);
+      ctx.closePath(); ctx.stroke();
+    });
+  }
+
   // objective diamond
   ctx.strokeStyle = "#8f2015"; ctx.lineWidth = 2;
   ctx.beginPath();
@@ -3931,6 +4138,10 @@ function readInputs(){
   cfg.waypoints   = $("waypoints").checked;
   cfg.zeus        = $("zeus").checked;
   cfg.fhq         = $("fhq").checked;
+  cfg.reinforce   = $("reinforce").checked;
+  cfg.reinfGroups = parseInt($("reinfGroups").value,10);
+  cfg.reinfDelay  = parseInt($("reinfDelay").value,10);
+  cfg.reinfDist   = parseInt($("reinfDist").value,10);
   cfg.missionName = $("mname").value.trim();
   cfg.author      = $("author").value.trim() || "Unknown";
   cfg.hour        = parseInt($("hour").value,10);
@@ -3952,6 +4163,10 @@ function regenerate(){
   $("vObjectives").textContent= cfg.objectives;
   $("vFaction").textContent   = coverageNote(FACTIONS[cfg.factionKey]);
   $("vPFaction").textContent  = coverageNote(FACTIONS[cfg.playerFactionKey]);
+  $("reinfOpts").hidden       = !cfg.reinforce;
+  $("vReinfGroups").textContent = cfg.reinfGroups;
+  $("vReinfDelay").textContent  = fmtDelay(cfg.reinfDelay);
+  $("vReinfDist").textContent   = cfg.reinfDist + " m";
 
   plan = rollPlan(cfg);
   sqmText = buildSQM(plan, cfg);
@@ -3959,7 +4174,8 @@ function regenerate(){
   $("rGrid").textContent  = gridRef(cfg.x, cfg.y);
   $("rPos").textContent   = Math.round(cfg.x) + " / " + Math.round(cfg.y);
   $("rIns").textContent   = cfg.insDist + " m @ " + cfg.insBrg + "\u00B0";
-  $("rEnemy").textContent = plan.total + " in " + plan.groups.length;
+  $("rEnemy").textContent = plan.total + " in " + plan.groups.length +
+    (plan.reinf ? " + " + plan.reinf.total : "");
 
   var nm = cfg.missionName || (plan.op.label + " \u2014 " + cfg.anchor);
   $("brief").innerHTML =
@@ -3967,12 +4183,21 @@ function regenerate(){
     plan.fac.tag + " holds " + plan.op.site + " near " + cfg.anchor +
     " on " + world.d + " at grid " + gridRef(cfg.x,cfg.y) + ". " +
     "A " + cfg.squad + "-slot " + plan.pfac.label + " team inserts " + cfg.insDist +
-    " m out on a bearing of " + cfg.insBrg + "\u00B0 and closes on foot.";
+    " m out on a bearing of " + cfg.insBrg + "\u00B0 and closes on foot." +
+    (plan.reinf
+      ? " If the team is detected, " + plan.reinf.groups.length + " reinforcement group" +
+        (plan.reinf.groups.length === 1 ? "" : "s") + " move in from the " +
+        compass(plan.reinf.bearing) + " after " + fmtDelay(plan.reinf.delay) + "."
+      : "");
 
   renderMods();
 
   var oob = plan.groups.map(function(g){
     return '<li><span>' + g.name + (g.patrol ? " \u00B7 roving" : "") +
+           '</span><span class="n">' + g.units.length + '</span></li>';
+  }).join("");
+  if (plan.reinf) oob += plan.reinf.groups.map(function(g){
+    return '<li><span>' + g.name + " · after " + fmtDelay(plan.reinf.delay) +
            '</span><span class="n">' + g.units.length + '</span></li>';
   }).join("");
   oob += plan.tasks.map(function(t,i){
@@ -3984,6 +4209,16 @@ function regenerate(){
   $("fileMeta").textContent = (sqmText.length/1024).toFixed(1) + " KB \u00B7 seed " + cfg.seed +
     " \u00B7 " + plan.mods.length + (plan.mods.length === 1 ? " mod" : " mods");
   drawMap();
+}
+
+function fmtDelay(s){
+  if (s < 60) return s + " s";
+  return Math.floor(s/60) + " min" + (s%60 ? " " + (s%60) + " s" : "");
+}
+
+function compass(deg){
+  return ["north","northeast","east","southeast","south","southwest","west","northwest"]
+    [Math.round(deg/45) % 8];
 }
 
 function coverageNote(fac){
@@ -4024,7 +4259,7 @@ function renderMods(){
 
 /* controls */
 ["op","faction","pfaction","strength","skill","patrol","insDist","insBrg","squad","objectives",
- "waypoints","zeus","fhq","mname","author","hour","weather","seed"].forEach(function(k){
+ "waypoints","reinforce","reinfGroups","reinfDelay","reinfDist","zeus","fhq","mname","author","hour","weather","seed"].forEach(function(k){
   $(k).addEventListener("input", regenerate);
   $(k).addEventListener("change", regenerate);
 });
